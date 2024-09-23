@@ -4,10 +4,13 @@ mod guts;
 #[cfg(test)]
 mod tests;
 
+type RefillFn = fn(&[u32; 8], &mut [u32; 256]);
+
 pub struct ChaCha8 {
     seed: [u32; 8],
     i: usize,
     buf: [u32; 256],
+    refill: RefillFn,
 }
 
 pub struct Seed([u32; 8]);
@@ -28,17 +31,18 @@ impl From<&[u8; 32]> for Seed {
 
 impl ChaCha8 {
     pub fn new(seed: Seed) -> Self {
+        Self::new_with_impl(seed, guts::select_impl())
+    }
+
+    fn new_with_impl(seed: Seed, refill: RefillFn) -> Self {
         let mut this = Self {
             seed: seed.0,
             i: 0,
             buf: [0; 256],
+            refill,
         };
-        this.refill_buf();
+        refill(&this.seed, &mut this.buf);
         this
-    }
-
-    fn refill_buf(&mut self) {
-        guts::fill_buf(&self.seed, &mut self.buf);
     }
 
     pub fn next_u32(&mut self) -> u32 {
@@ -46,9 +50,9 @@ impl ChaCha8 {
         self.i += 1;
         let new_seed_start = self.buf.len() - self.seed.len();
         if self.i == new_seed_start {
-            self.i = 0;
             self.seed.copy_from_slice(&self.buf[new_seed_start..]);
-            self.refill_buf();
+            (self.refill)(&self.seed, &mut self.buf);
+            self.i = 0;
         }
         result
     }

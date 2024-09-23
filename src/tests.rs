@@ -1,8 +1,12 @@
-use crate::{ChaCha8, Seed};
+use crate::{guts, ChaCha8, RefillFn, Seed};
 
 #[test]
-fn chacha8rand_test_vector() {
-    let mut rng = ChaCha8::new(Seed::from(SAMPLE_SEED));
+fn test_sample_scalar() {
+    test_sample_with(guts::scalar::fill_buf);
+}
+
+fn test_sample_with(refill: RefillFn) {
+    let mut rng = ChaCha8::new_with_impl(Seed::from(SAMPLE_SEED), refill);
     for sample in SAMPLE_OUTPUT_U64LE.iter().copied() {
         assert_eq!(rng.next_u32(), sample as u32);
         assert_eq!(rng.next_u32(), (sample >> 32) as u32);
