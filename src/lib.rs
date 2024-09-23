@@ -1,10 +1,10 @@
 use std::array;
 
-mod guts;
+pub mod guts;
 #[cfg(test)]
 mod tests;
 
-type RefillFn = fn(&[u32; 8], &mut [u32; 256]);
+pub type RefillFn = fn(&[u32; 8], &mut [u32; 256]);
 
 pub struct ChaCha8 {
     seed: [u32; 8],
@@ -34,7 +34,7 @@ impl ChaCha8 {
         Self::new_with_impl(seed, guts::select_impl())
     }
 
-    fn new_with_impl(seed: Seed, refill: RefillFn) -> Self {
+    pub fn new_with_impl(seed: Seed, refill: RefillFn) -> Self {
         let mut this = Self {
             seed: seed.0,
             i: 0,

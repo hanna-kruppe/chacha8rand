@@ -3,10 +3,9 @@ use arrayref::array_mut_ref;
 use wide::u32x4;
 
 pub fn fill_buf(key: &[u32; 8], buf: &mut [u32; 256]) {
-    quad_block(key, 0, array_mut_ref![buf, 0, 64]);
-    quad_block(key, 1, array_mut_ref![buf, 64, 64]);
-    quad_block(key, 2, array_mut_ref![buf, 2 * 64, 64]);
-    quad_block(key, 3, array_mut_ref![buf, 3 * 64, 64]);
+    for i in 0..4 {
+        quad_block(key, i, array_mut_ref![buf, i * 64, 64]);
+    }
 }
 
 // This is a macro instead of a function because that makes the invocations looks more like the
