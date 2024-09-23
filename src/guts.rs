@@ -1,28 +1,20 @@
+use arrayref::array_mut_ref;
+
 #[inline(never)]
-pub fn fill_buf(seed: &[u32; 8], buf: &mut [u32; 256]) {
-    let mut unpermuted = [0; 256];
-    chacha8(seed, &mut unpermuted);
-    let mut out_idx = 0;
-    for four_blocks in unpermuted.chunks_exact(4 * WORDS_PER_BLOCK) {
-        for i in 0..16 {
-            buf[out_idx] = four_blocks[i];
-            buf[out_idx + 1] = four_blocks[i + 16];
-            buf[out_idx + 2] = four_blocks[i + 32];
-            buf[out_idx + 3] = four_blocks[i + 48];
-            out_idx += 4;
-        }
-    }
-    assert_eq!(out_idx, buf.len());
+pub fn fill_buf(key: &[u32; 8], buf: &mut [u32; 256]) {
+    quad_block(key, 0, array_mut_ref![buf, 0, 64]);
+    quad_block(key, 1, array_mut_ref![buf, 64, 64]);
+    quad_block(key, 2, array_mut_ref![buf, 2 * 64, 64]);
+    quad_block(key, 3, array_mut_ref![buf, 3 * 64, 64]);
 }
 
-const WORDS_PER_BLOCK: usize = 16;
-
-fn chacha8(key: &[u32; 8], out: &mut [u32]) {
-    assert_eq!(out.len() % WORDS_PER_BLOCK, 0);
-    for (i, out_block) in out.chunks_exact_mut(WORDS_PER_BLOCK).enumerate() {
-        let ctr = u32::try_from(i).unwrap();
-        chacha8_block(key, ctr, out_block.try_into().unwrap());
-    }
+fn quad_block(key: &[u32; 8], i: usize, buf: &mut [u32; 64]) {
+    assert!(i < 4);
+    let ctr = (i * 4) as u32;
+    block_strided(key, ctr, array_mut_ref![buf, 0, 61]);
+    block_strided(key, ctr + 1, array_mut_ref![buf, 1, 61]);
+    block_strided(key, ctr + 2, array_mut_ref![buf, 2, 61]);
+    block_strided(key, ctr + 3, array_mut_ref![buf, 3, 61]);
 }
 
 // This is a macro instead of a function because that makes the invocations looks more like the
@@ -43,7 +35,7 @@ const C1: u32 = u32::from_le_bytes(*b"nd 3");
 const C2: u32 = u32::from_le_bytes(*b"2-by");
 const C3: u32 = u32::from_le_bytes(*b"te k");
 
-fn chacha8_block(key: &[u32; 8], ctr: u32, out: &mut [u32; WORDS_PER_BLOCK]) {
+fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u32; 61]) {
     #[rustfmt::skip]
     let mut x = [
         C0,     C1,     C2,     C3,
@@ -51,6 +43,7 @@ fn chacha8_block(key: &[u32; 8], ctr: u32, out: &mut [u32; WORDS_PER_BLOCK]) {
         key[4], key[5], key[6], key[7],
         ctr,    0,      0,      0
     ];
+
     const ROUNDS: usize = 8;
     for _ in (0..ROUNDS).step_by(2) {
         quarter_round!(x[0], x[4], x[8], x[12]);
@@ -63,8 +56,14 @@ fn chacha8_block(key: &[u32; 8], ctr: u32, out: &mut [u32; WORDS_PER_BLOCK]) {
         quarter_round!(x[2], x[7], x[8], x[13]);
         quarter_round!(x[3], x[4], x[9], x[14]);
     }
-    out.copy_from_slice(&x);
-    for (i, ki) in key.iter().copied().enumerate() {
-        out[i + 4] = out[i + 4].wrapping_add(ki);
+
+    for i in 0..4 {
+        out[i * 4] = x[i];
+    }
+    for i in 4..12 {
+        out[i * 4] = x[i].wrapping_add(key[i - 4]);
+    }
+    for i in 12..16 {
+        out[i * 4] = x[i];
     }
 }
