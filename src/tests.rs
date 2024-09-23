@@ -5,6 +5,11 @@ fn test_sample_scalar() {
     test_sample_with(guts::scalar::fill_buf);
 }
 
+#[test]
+fn test_sample_simd128() {
+    test_sample_with(guts::simd128::fill_buf);
+}
+
 fn test_sample_with(refill: RefillFn) {
     let mut rng = ChaCha8::new_with_impl(Seed::from(SAMPLE_SEED), refill);
     for sample in SAMPLE_OUTPUT_U64LE.iter().copied() {
