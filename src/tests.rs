@@ -10,6 +10,12 @@ fn test_sample_simd128() {
     test_sample_with(Backend::simd128());
 }
 
+#[test]
+#[cfg(target_arch = "x86_64")]
+fn test_sample_avx2() {
+    test_sample_with(Backend::avx2().expect("this test requires avx2"));
+}
+
 fn test_sample_with(backend: Backend) {
     let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
     for sample in SAMPLE_OUTPUT_U64LE.iter().copied() {

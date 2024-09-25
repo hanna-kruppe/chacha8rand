@@ -30,3 +30,13 @@ fn scalar(bencher: Bencher, kilobytes: u32) {
 fn simd128(bencher: Bencher, kilobytes: u32) {
     bench(bencher, kilobytes, Backend::simd128());
 }
+
+#[divan::bench(args = LENS)]
+#[cfg(target_arch = "x86_64")]
+fn avx2(bencher: Bencher, kilobytes: u32) {
+    bench(
+        bencher,
+        kilobytes,
+        Backend::avx2().expect("avx2 is required for this"),
+    );
+}
