@@ -22,8 +22,10 @@ fn bench_bulk(bencher: Bencher, backend: Backend) {
     let mut key = array::from_fn(|i| u32::from_le_bytes(*array_ref![SEED, i * 4, 4]));
     let mut buf = [0; 256];
     bencher.counter(BytesCount::u32(256 - 8)).bench_local(|| {
+        black_box(&mut key);
         backend.refill(&key, &mut buf);
         key = *array_ref![buf, 256 - 8, 8];
+        black_box(&buf);
     });
 }
 
