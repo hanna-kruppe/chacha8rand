@@ -1,42 +1,59 @@
-use std::hint::black_box;
+use std::{array, hint::black_box};
 
+use arrayref::array_ref;
 use chacha8rand::{Backend, ChaCha8, Seed};
 use divan::{counter::BytesCount, Bencher};
 
 fn main() {
-    // Run registered benchmarks.
     divan::main();
 }
 
-fn bench(bencher: Bencher, kilobytes: u32, backend: Backend) {
-    const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
-    let words = kilobytes * 1024 / 4;
-    bencher.counter(BytesCount::new(words * 4)).bench(|| {
-        let mut rng = ChaCha8::with_backend(Seed::from(SEED), backend);
-        for _ in 0..words {
-            black_box(rng.next_u32());
-        }
-    })
+const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
+
+fn bench_next(bencher: Bencher, backend: Backend) {
+    let backend = black_box(backend);
+    let mut rng = ChaCha8::with_backend(Seed::from(SEED), backend);
+    bencher.bench_local(|| {
+        black_box(rng.next_u32());
+    });
 }
 
-const LENS: &[u32] = &[1, 64, 512];
-
-#[divan::bench(args = LENS)]
-fn scalar(bencher: Bencher, kilobytes: u32) {
-    bench(bencher, kilobytes, Backend::scalar());
+fn bench_bulk(bencher: Bencher, backend: Backend) {
+    let mut key = array::from_fn(|i| u32::from_le_bytes(*array_ref![SEED, i * 4, 4]));
+    let mut buf = [0; 256];
+    bencher.counter(BytesCount::u32(256 - 8)).bench_local(|| {
+        backend.refill(&key, &mut buf);
+        key = *array_ref![buf, 256 - 8, 8];
+    });
 }
 
-#[divan::bench(args = LENS)]
-fn simd128(bencher: Bencher, kilobytes: u32) {
-    bench(bencher, kilobytes, Backend::simd128());
+#[divan::bench]
+fn next_scalar(bencher: Bencher) {
+    bench_next(bencher, Backend::scalar());
 }
 
-#[divan::bench(args = LENS)]
+#[divan::bench]
+fn next_simd128(bencher: Bencher) {
+    bench_next(bencher, Backend::simd128());
+}
+
+#[divan::bench]
 #[cfg(target_arch = "x86_64")]
-fn avx2(bencher: Bencher, kilobytes: u32) {
-    bench(
-        bencher,
-        kilobytes,
-        Backend::avx2().expect("avx2 is required for this"),
-    );
+fn next_avx2(bencher: Bencher) {
+    bench_next(bencher, Backend::avx2().expect("avx2 is required for this"));
+}
+
+#[divan::bench]
+fn bulk_scalar(bencher: Bencher) {
+    bench_bulk(bencher, Backend::scalar());
+}
+
+#[divan::bench]
+fn bulk_simd128(bencher: Bencher) {
+    bench_bulk(bencher, Backend::simd128());
+}
+
+#[divan::bench]
+fn bulk_avx2(bencher: Bencher) {
+    bench_bulk(bencher, Backend::avx2().expect("avx2 is required for this"));
 }

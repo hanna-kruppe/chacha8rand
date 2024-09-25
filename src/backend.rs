@@ -32,7 +32,8 @@ impl Backend {
         None
     }
 
-    pub(crate) fn refill(self, key: &[u32; 8], buf: &mut [u32; 256]) {
+    #[doc(hidden)]
+    pub fn refill(self, key: &[u32; 8], buf: &mut [u32; 256]) {
         // Safety: function is safe to call because that's literally what this type's invariant
         // states.
         unsafe { (self.0)(key, buf) }
