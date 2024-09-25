@@ -1,17 +1,17 @@
-use crate::{guts, ChaCha8, RefillFn, Seed};
+use crate::{Backend, ChaCha8, Seed};
 
 #[test]
 fn test_sample_scalar() {
-    test_sample_with(guts::scalar::fill_buf);
+    test_sample_with(Backend::scalar());
 }
 
 #[test]
 fn test_sample_simd128() {
-    test_sample_with(guts::simd128::fill_buf);
+    test_sample_with(Backend::simd128());
 }
 
-fn test_sample_with(refill: RefillFn) {
-    let mut rng = ChaCha8::new_with_impl(Seed::from(SAMPLE_SEED), refill);
+fn test_sample_with(backend: Backend) {
+    let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
     for sample in SAMPLE_OUTPUT_U64LE.iter().copied() {
         assert_eq!(rng.next_u32(), sample as u32);
         assert_eq!(rng.next_u32(), (sample >> 32) as u32);
