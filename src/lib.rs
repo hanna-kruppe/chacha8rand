@@ -46,14 +46,14 @@ impl ChaCha8 {
     }
 
     pub fn next_u32(&mut self) -> u32 {
-        let result = self.buf[self.i];
-        self.i += 1;
         let new_seed_start = self.buf.len() - self.seed.len();
-        if self.i == new_seed_start {
+        if self.i >= new_seed_start {
             self.seed.copy_from_slice(&self.buf[new_seed_start..]);
             (self.refill)(&self.seed, &mut self.buf);
             self.i = 0;
         }
+        let result = self.buf[self.i];
+        self.i += 1;
         result
     }
 }
