@@ -13,3 +13,9 @@ wide = "0.7.28"
 
 [dev-dependencies]
 divan = "0.1.14"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+debug = "line-tables-only"
+panic = "abort"
