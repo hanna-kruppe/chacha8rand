@@ -10,6 +10,7 @@ fn main() {
 
 const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
 
+#[inline(never)]
 fn bench_next(bencher: Bencher, backend: Backend) {
     let backend = black_box(backend);
     let mut rng = ChaCha8::with_backend(Seed::from(SEED), backend);
@@ -18,10 +19,16 @@ fn bench_next(bencher: Bencher, backend: Backend) {
     });
 }
 
+#[inline(never)]
 fn bench_bulk(bencher: Bencher, backend: Backend) {
     let mut key = array::from_fn(|i| u32::from_le_bytes(*array_ref![SEED, i * 4, 4]));
     let mut buf = [0; 256];
-    bencher.counter(BytesCount::u32(256 - 8)).bench_local(|| {
+    // Arguably, the 32 bytes that are used as next key should not be counted because they're not
+    // useful output. However, the Go version has a benchmark that's equivalent to this one (can be
+    // run with `go test -bench=Block internal/chacha8rand`) which counts the full block, and it's
+    // nice to be able to compare the report throughput directly.
+    let counter = BytesCount::u32(256);
+    bencher.counter(counter).bench_local(|| {
         black_box(&mut key);
         backend.refill(&key, &mut buf);
         key = *array_ref![buf, 256 - 8, 8];
