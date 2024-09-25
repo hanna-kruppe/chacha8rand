@@ -53,6 +53,15 @@ fn next_avx2(bencher: Bencher) {
 }
 
 #[divan::bench]
+#[cfg(target_arch = "x86_64")]
+fn next_nop_backend(bencher: Bencher) {
+    bench_next(
+        bencher,
+        Backend::totally_wrong_stub_for_testing_that_breaks_everything_if_you_actually_use_it(),
+    );
+}
+
+#[divan::bench]
 fn bulk_scalar(bencher: Bencher) {
     bench_bulk(bencher, Backend::scalar());
 }

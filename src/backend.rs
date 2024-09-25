@@ -33,6 +33,13 @@ impl Backend {
     }
 
     #[doc(hidden)]
+    // This does not actually compute ChaCha8 output, it doesn't refill the buffer at all. Only
+    // useful for a benchmark that estimates the baseline overhead of next_u32().
+    pub fn totally_wrong_stub_for_testing_that_breaks_everything_if_you_actually_use_it() -> Self {
+        Backend::safe(|_key, _seed| {})
+    }
+
+    #[doc(hidden)]
     pub fn refill(self, key: &[u32; 8], buf: &mut [u32; 256]) {
         // Safety: function is safe to call because that's literally what this type's invariant
         // states.
