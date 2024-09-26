@@ -5,6 +5,7 @@ mod guts;
 #[cfg(test)]
 mod tests;
 
+use arrayref::array_ref;
 pub use backend::Backend;
 
 pub struct ChaCha8 {
@@ -19,7 +20,7 @@ pub struct Seed([u32; 8]);
 impl From<[u8; 32]> for Seed {
     fn from(bytes: [u8; 32]) -> Self {
         Self(array::from_fn(|i| {
-            u32::from_le_bytes(bytes[4 * i..][..4].try_into().unwrap())
+            u32::from_le_bytes(*array_ref![bytes, 4 * i, 4])
         }))
     }
 }

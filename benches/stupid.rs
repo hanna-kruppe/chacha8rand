@@ -62,7 +62,6 @@ fn next_u32_avx2(bencher: Bencher) {
 }
 
 #[divan::bench]
-#[cfg(target_arch = "x86_64")]
 fn next_u32_nop(bencher: Bencher) {
     bench_next_u32(
         bencher,
@@ -86,7 +85,6 @@ fn next_u64_avx2(bencher: Bencher) {
 }
 
 #[divan::bench]
-#[cfg(target_arch = "x86_64")]
 fn next_u64_nop(bencher: Bencher) {
     bench_next_u64(
         bencher,
