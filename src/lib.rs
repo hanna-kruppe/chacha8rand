@@ -5,7 +5,7 @@ mod guts;
 #[cfg(test)]
 mod tests;
 
-use arrayref::array_ref;
+use arrayref::{array_ref, array_refs};
 pub use backend::Backend;
 
 pub struct ChaCha8 {
@@ -66,12 +66,19 @@ impl ChaCha8 {
     }
 
     pub fn next_u32(&mut self) -> u32 {
-        let new_seed_start = self.buf.len() - self.seed.len();
-        if self.i >= new_seed_start {
-            self.seed.copy_from_slice(&self.buf[new_seed_start..]);
+        let (output_buf, next_seed) = array_refs![&self.buf, 248, 8];
+        // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
+        // is unlikely. For example, #[cold] on Backend::refill is ignored at the time of this
+        // writing. Out of the various ways I've tried writing this function, this one seems to
+        // generate the least bad assembly when compiled in isolation. (Of course, in practice we
+        // want it to be inlined.)
+        if self.i >= output_buf.len() {
+            self.seed = *next_seed;
             self.backend.refill(&self.seed, &mut self.buf);
             self.i = 0;
         }
+        // Can't use `output_buf` here because the refill branch clobbered that borrow, but it's
+        // okay because we ensured `i < output_buf.len() < self.buf.len()`.
         let result = self.buf[self.i];
         self.i += 1;
         result
