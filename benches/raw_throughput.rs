@@ -42,8 +42,8 @@ fn next_u32_scalar(bencher: Bencher) {
 }
 
 #[divan::bench]
-fn next_u32_simd128(bencher: Bencher) {
-    bench_next_u32(bencher, Backend::simd128());
+fn next_u32_widex4(bencher: Bencher) {
+    bench_next_u32(bencher, Backend::widex4());
 }
 
 #[divan::bench]
@@ -66,8 +66,8 @@ fn bulk_scalar(bencher: Bencher) {
 }
 
 #[divan::bench]
-fn bulk_simd128(bencher: Bencher) {
-    bench_bulk(bencher, Backend::simd128());
+fn bulk_widex4(bencher: Bencher) {
+    bench_bulk(bencher, Backend::widex4());
 }
 
 #[divan::bench]

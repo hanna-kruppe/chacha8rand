@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bench]]
-name = "stupid"
+name = "raw_throughput"
 harness = false
 
 [dependencies]

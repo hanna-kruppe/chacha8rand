@@ -18,8 +18,8 @@ impl Backend {
         Self::safe(guts::scalar::fill_buf)
     }
 
-    pub fn simd128() -> Backend {
-        Self::safe(guts::simd128::fill_buf)
+    pub fn widex4() -> Backend {
+        Self::safe(guts::widex4::fill_buf)
     }
 
     pub fn avx2() -> Option<Self> {

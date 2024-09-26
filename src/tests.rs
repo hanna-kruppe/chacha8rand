@@ -6,8 +6,8 @@ fn test_sample_scalar() {
 }
 
 #[test]
-fn test_sample_simd128() {
-    test_sample_with(Backend::simd128());
+fn test_sample_widex4() {
+    test_sample_with(Backend::widex4());
 }
 
 #[test]

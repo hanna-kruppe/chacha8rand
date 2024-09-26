@@ -1,7 +1,7 @@
 #[cfg(target_arch = "x86_64")]
 pub mod avx2;
 pub mod scalar;
-pub mod simd128;
+pub mod widex4;
 
 // The constant words in the first row of the initial state
 const C0: u32 = u32::from_le_bytes(*b"expa");

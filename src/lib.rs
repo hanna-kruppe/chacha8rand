@@ -37,13 +37,13 @@ fn backend_detect() -> Backend {
     }
     if cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64") {
         // These targets always have 128 bit SIMD available
-        return Backend::simd128();
+        return Backend::widex4();
     }
     if cfg!(target_arch = "x86") && cfg!(target_feature = "sse2") {
         // The case for the x4 impl is less obvious for 32-bit x86 SIMD because there we only have
         // eight XMM registers, but it's probably no worse than the scalar implementation. TODO:
         // benchmark it.
-        return Backend::simd128();
+        return Backend::widex4();
     }
     // Fallback if we don't know for sure that we have SIMD:
     Backend::scalar()
