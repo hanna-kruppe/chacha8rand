@@ -76,19 +76,4 @@ impl ChaCha8 {
         self.i += 1;
         result
     }
-
-    pub fn next_u64(&mut self) -> u64 {
-        let new_seed_start = self.buf.len() - self.seed.len();
-        // -1 because we read 2x u32
-        if self.i >= (new_seed_start - 1) {
-            self.seed.copy_from_slice(&self.buf[new_seed_start..]);
-            self.backend.refill(&self.seed, &mut self.buf);
-            self.i = 0;
-        }
-        let lo = self.buf[self.i];
-        let hi = self.buf[self.i + 1];
-        let result = u64::from(lo) | (u64::from(hi) << 32);
-        self.i += 2;
-        result
-    }
 }
