@@ -71,6 +71,7 @@ fn bulk_widex4(bencher: Bencher) {
 }
 
 #[divan::bench]
+#[cfg(target_arch = "x86_64")]
 fn bulk_avx2(bencher: Bencher) {
     bench_bulk(bencher, Backend::avx2().expect("avx2 is required for this"));
 }
