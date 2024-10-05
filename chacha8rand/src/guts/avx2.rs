@@ -93,14 +93,14 @@ fn quarter_round(avx2: Avx2, x: &mut [__m256i; 16], a: usize, b: usize, c: usize
 }
 
 #[inline(always)]
-fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(avx2: Avx2, a: __m256i) -> __m256i {
+fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(avx2: Avx2, x: __m256i) -> __m256i {
     // Note: some of these rotations can be implemented as shuffles, but LLVM manages to figure that
     // out by itself, so there's no need to complicate the code.
     const {
         assert!(SH_RIGHT == (32 - SH_LEFT));
     }
     avx2.xor(
-        avx2.shift_left_u32::<SH_LEFT>(a),
-        avx2.shift_right_u32::<SH_RIGHT>(a),
+        avx2.shift_left_u32::<SH_LEFT>(x),
+        avx2.shift_right_u32::<SH_RIGHT>(x),
     )
 }

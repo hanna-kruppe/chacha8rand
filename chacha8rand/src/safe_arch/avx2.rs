@@ -40,31 +40,31 @@ impl Avx2 {
     }
 
     #[inline(always)]
-    pub(crate) fn add_u32(self, a: __m256i, b: __m256i) -> __m256i {
+    pub(crate) fn add_u32(self, x: __m256i, y: __m256i) -> __m256i {
         // SAFETY: only needs AVX2, `self` proves that we have AVX2.
-        unsafe { _mm256_add_epi32(a, b) }
+        unsafe { _mm256_add_epi32(x, y) }
     }
 
     #[inline(always)]
-    pub(crate) fn xor(self, a: __m256i, b: __m256i) -> __m256i {
+    pub(crate) fn xor(self, x: __m256i, y: __m256i) -> __m256i {
         // SAFETY: only needs AVX2, `self` proves that we have AVX2.
-        unsafe { _mm256_xor_si256(a, b) }
+        unsafe { _mm256_xor_si256(x, y) }
     }
 
     #[inline(always)]
-    pub(crate) fn shift_left_u32<const IMM8: i32>(self, a: __m256i) -> __m256i {
+    pub(crate) fn shift_left_u32<const IMM8: i32>(self, x: __m256i) -> __m256i {
         // SAFETY: only needs AVX2, `self` proves that we have AVX2.
-        unsafe { _mm256_slli_epi32::<IMM8>(a) }
+        unsafe { _mm256_slli_epi32::<IMM8>(x) }
     }
 
     #[inline(always)]
-    pub(crate) fn shift_right_u32<const IMM8: i32>(self, a: __m256i) -> __m256i {
+    pub(crate) fn shift_right_u32<const IMM8: i32>(self, x: __m256i) -> __m256i {
         // SAFETY: only needs AVX2, `self` proves that we have AVX2.
-        unsafe { _mm256_srli_epi32::<IMM8>(a) }
+        unsafe { _mm256_srli_epi32::<IMM8>(x) }
     }
 
     #[inline(always)]
-    pub(crate) fn storeu2(self, vec: __m256i, dest_hi: &mut [u32; 4], dest_lo: &mut [u32; 4]) {
+    pub(crate) fn storeu2(self, x: __m256i, dest_hi: &mut [u32; 4], dest_lo: &mut [u32; 4]) {
         let hiaddr: *mut __m128i = dest_hi.as_mut_ptr().cast();
         let loaddr: *mut __m128i = dest_lo.as_mut_ptr().cast();
         // SAFETY: this intrinsic requires AVX2 and stores 128 bits to each of the two addresses.
@@ -72,7 +72,7 @@ impl Avx2 {
         // destinations is OK because both pointers are derived from distinct `&mut [u32; 4]`, i.e.,
         // we're allowed to write 128 bits to both of those locations.
         unsafe {
-            _mm256_storeu2_m128i(hiaddr, loaddr, vec);
+            _mm256_storeu2_m128i(hiaddr, loaddr, x);
         }
     }
 }
