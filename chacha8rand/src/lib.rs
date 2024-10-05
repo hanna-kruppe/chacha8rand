@@ -104,25 +104,21 @@ impl ChaCha8 {
 // `Backend`'s private fields.
 impl Backend {
     pub fn detect_best() -> Self {
+        // On x86, we prefer AVX2 where available, otherwise we'll almost always have SSE2 without
+        // runtime detection.
         if let Some(avx2) = Backend::x86_avx2() {
-            // This is the best choice on x86 when it exists.
             return avx2;
         }
+        if let Some(sse2) = Backend::x86_sse2() {
+            return sse2;
+        }
+
         if let Some(neon) = Backend::aarch64_neon() {
             return neon;
         }
-        if cfg!(target_arch = "x86_64") {
-            // These targets always have 128 bit SIMD available.
-            return Backend::widex4();
-        }
+
         if cfg!(target_arch = "wasm32") && cfg!(target_feature = "simd128") {
             // No dynamic feature detection on wasm.
-            return Backend::widex4();
-        }
-        if cfg!(target_arch = "x86") && cfg!(target_feature = "sse2") {
-            // The case for the x4 impl is less obvious for 32-bit x86 SIMD because there we only
-            // have eight XMM registers, but it's probably no worse than the scalar implementation.
-            // TODO: benchmark it.
             return Backend::widex4();
         }
         // Fallback if we don't know for sure that we have SIMD:
@@ -139,6 +135,10 @@ impl Backend {
 
     pub fn x86_avx2() -> Option<Self> {
         guts::avx2::detect()
+    }
+
+    pub fn x86_sse2() -> Option<Self> {
+        guts::sse2::detect()
     }
 
     pub fn aarch64_neon() -> Option<Self> {

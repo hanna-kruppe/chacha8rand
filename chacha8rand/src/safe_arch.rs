@@ -11,3 +11,9 @@ pub mod avx2;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 pub mod neon;
+
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "x86"),
+    target_feature = "sse2"
+))]
+pub mod sse2;

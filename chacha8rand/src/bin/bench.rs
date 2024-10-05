@@ -33,6 +33,9 @@ fn collect_benchmarks() -> Vec<Benchmark> {
 
     benchmarks.push(bench_next_u32("scalar", Backend::scalar()));
     benchmarks.push(bench_next_u32("widex4", Backend::widex4()));
+    if let Some(sse2) = Backend::x86_sse2() {
+        benchmarks.push(bench_next_u32("sse2", sse2));
+    }
     if let Some(avx2) = Backend::x86_avx2() {
         benchmarks.push(bench_next_u32("avx2", avx2));
     }
@@ -42,6 +45,9 @@ fn collect_benchmarks() -> Vec<Benchmark> {
 
     benchmarks.push(bench_bulk("scalar", Backend::scalar()));
     benchmarks.push(bench_bulk("widex4", Backend::widex4()));
+    if let Some(sse2) = Backend::x86_sse2() {
+        benchmarks.push(bench_bulk("sse2", sse2));
+    }
     if let Some(avx2) = Backend::x86_avx2() {
         benchmarks.push(bench_bulk("avx2", avx2));
     }

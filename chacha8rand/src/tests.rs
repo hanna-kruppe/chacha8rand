@@ -17,6 +17,12 @@ fn test_sample_avx2() {
 }
 
 #[test]
+#[cfg(target_arch = "x86_64")]
+fn test_sample_sse2() {
+    test_backend(Backend::x86_sse2().expect("this test requires sse2"));
+}
+
+#[test]
 #[cfg(target_arch = "aarch64")]
 fn test_sample_neon() {
     test_backend(Backend::aarch64_neon().expect("this test requires neon"));
