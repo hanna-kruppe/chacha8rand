@@ -33,6 +33,9 @@ pub struct ChaCha8 {
     buf: Buffer,
 }
 
+// None of the backends currently require this alignment for soundness, but SIMD memory accesses
+// that cross 32- or 64-byte boundaries are slightly slower on a bunch of CPUs, so higher alignment
+// is occasionally useful. Since we don't do 512-bit SIMD, 32-byte alignment is sufficient.
 #[repr(align(32))]
 pub struct Buffer {
     pub words: [u32; 256],
