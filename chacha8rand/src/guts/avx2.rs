@@ -21,7 +21,12 @@ pub(crate) fn detect() -> Option<Backend> {
 /// Requires AVX2 target feature. No other safety requirements.
 #[target_feature(enable = "avx2")]
 pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+    // Since we're already inside a function with `target_feature(enable = "avx2)`, the `expect` is
+    // too late to prevent UB. But there is still a chance that it panics if that UB is triggered,
+    // and the check is basically free compared to the work we're doing below, so it doesn't hurt to
+    // use `expect` here.
     let avx2 = Avx2::new().expect("AVX2 must be available if this backend is invoked");
+
     let buf = &mut buf.words;
     let mut ctr = avx2.elems([0, 1, 2, 3, 4, 5, 6, 7]);
     let splat = |x| avx2.splat(x);
