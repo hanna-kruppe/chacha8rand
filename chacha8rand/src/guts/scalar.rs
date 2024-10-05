@@ -1,8 +1,12 @@
-use crate::guts::{C0, C1, C2, C3};
+use crate::{
+    guts::{C0, C1, C2, C3},
+    Buffer,
+};
 use arrayref::array_mut_ref;
 
 #[inline(never)]
-pub fn fill_buf(key: &[u32; 8], buf: &mut [u32; 256]) {
+pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+    let buf = &mut buf.words;
     quad_block(key, 0, array_mut_ref![buf, 0, 64]);
     quad_block(key, 1, array_mut_ref![buf, 64, 64]);
     quad_block(key, 2, array_mut_ref![buf, 2 * 64, 64]);

@@ -7,15 +7,35 @@ pub mod rand_core_0_6;
 #[cfg(test)]
 mod tests;
 
-use arrayref::{array_ref, array_refs};
+use arrayref::array_ref;
 
 pub use backend::Backend;
 
+// This is repr(C) because rustc's heuristic for minimizing padding puts the buffer first, which
+// doesn't actually reduce padding compared to this layout and increases the offsets of all fields
+// to slightly more than 1000 bytes. That's still within the range of immediate offsets for
+// loads/stores in most instruction sets, but takes slightly more space to encode in Webassembly.
+#[repr(C)]
 pub struct ChaCha8 {
-    seed: [u32; 8],
-    i: usize,
-    buf: [u32; 256],
     backend: Backend,
+    i: usize,
+    seed: [u32; 8],
+    buf: Buffer,
+}
+
+#[repr(align(32))]
+pub struct Buffer {
+    pub words: [u32; 256],
+}
+
+impl Buffer {
+    fn output(&self) -> &[u32; 248] {
+        array_ref![&self.words, 0, 248]
+    }
+
+    fn new_key(&self) -> &[u32; 8] {
+        array_ref![&self.words, 248, 8]
+    }
 }
 
 pub struct Seed([u32; 8]);
@@ -62,10 +82,11 @@ impl ChaCha8 {
     }
 
     pub fn with_backend(seed: Seed, backend: Backend) -> Self {
+        let buf = Buffer { words: [0; 256] };
         let mut this = Self {
             seed: seed.0,
             i: 0,
-            buf: [0; 256],
+            buf,
             backend,
         };
         backend.refill(&this.seed, &mut this.buf);
@@ -73,20 +94,17 @@ impl ChaCha8 {
     }
 
     pub fn next_u32(&mut self) -> u32 {
-        let (output_buf, next_seed) = array_refs![&self.buf, 248, 8];
         // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
         // is unlikely. For example, #[cold] on Backend::refill is ignored at the time of this
         // writing. Out of the various ways I've tried writing this function, this one seems to
         // generate the least bad assembly when compiled in isolation. (Of course, in practice we
         // want it to be inlined.)
-        if self.i >= output_buf.len() {
-            self.seed = *next_seed;
+        if self.i >= self.buf.output().len() {
+            self.seed = *self.buf.new_key();
             self.backend.refill(&self.seed, &mut self.buf);
             self.i = 0;
         }
-        // Can't use `output_buf` here because the refill branch clobbered that borrow, but it's
-        // okay because we ensured `i < output_buf.len() < self.buf.len()`.
-        let result = self.buf[self.i];
+        let result = self.buf.output()[self.i];
         self.i += 1;
         result
     }

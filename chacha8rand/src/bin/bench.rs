@@ -5,7 +5,7 @@ use std::{
 };
 
 use arrayref::array_ref;
-use chacha8rand::{Backend, ChaCha8, Seed};
+use chacha8rand::{Backend, Buffer, ChaCha8, Seed};
 
 fn main() {
     println!("label,min,p10,p50,p90,max,min_repeats,max_repeats");
@@ -132,14 +132,14 @@ fn bench_next_u32(backend_name: &str, backend: Backend) -> Benchmark {
 
 fn bench_bulk(backend_name: &str, backend: Backend) -> Benchmark {
     let mut key = array::from_fn(|i| u32::from_le_bytes(*array_ref![SEED, i * 4, 4]));
-    let mut buf = [0; 256];
+    let mut buf = Buffer { words: [0; 256] };
     Benchmark {
         label: format!("bulk/{backend_name}"),
         work: Box::new(move |n| {
             for _ in 0..n {
                 black_box(&mut key);
                 backend.refill(&key, &mut buf);
-                key = *array_ref![buf, 256 - 8, 8];
+                key = *array_ref![buf.words, 256 - 8, 8];
                 black_box(&buf);
             }
         }),

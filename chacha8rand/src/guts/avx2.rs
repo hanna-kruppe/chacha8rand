@@ -1,4 +1,7 @@
-use crate::guts::{C0, C1, C2, C3};
+use crate::{
+    guts::{C0, C1, C2, C3},
+    Buffer,
+};
 use arrayref::{array_mut_ref, mut_array_refs};
 use std::arch::x86_64::{
     __m256i, _mm256_add_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_slli_epi32,
@@ -9,7 +12,8 @@ use std::arch::x86_64::{
 ///
 /// Requires AVX2 target feature. No other safety requirements.
 #[target_feature(enable = "avx2")]
-pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut [u32; 256]) {
+pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+    let buf = &mut buf.words;
     let mut ctr = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
 
     for eight_blocks in 0..2 {

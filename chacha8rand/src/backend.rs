@@ -1,4 +1,4 @@
-use crate::guts;
+use crate::{guts, Buffer};
 
 // Safety invariant: only constructed with functions that are safe to call. Either because it's
 // actually a safe function, or because the function only requires certain target features that were
@@ -6,10 +6,10 @@ use crate::guts;
 //
 // (The latter case is the whole reason why it's an `unsafe` fn to begin with.)
 #[derive(Clone, Copy)]
-pub struct Backend(unsafe fn(&[u32; 8], &mut [u32; 256]));
+pub struct Backend(unsafe fn(&[u32; 8], &mut Buffer));
 
 impl Backend {
-    pub(crate) fn safe(f: fn(&[u32; 8], &mut [u32; 256])) -> Self {
+    pub(crate) fn safe(f: fn(&[u32; 8], &mut Buffer)) -> Self {
         // Safety: `f` is a safe function.
         Backend(f)
     }
@@ -40,7 +40,7 @@ impl Backend {
     }
 
     #[doc(hidden)]
-    pub fn refill(self, key: &[u32; 8], buf: &mut [u32; 256]) {
+    pub fn refill(self, key: &[u32; 8], buf: &mut Buffer) {
         // Safety: function is safe to call because that's literally what this type's invariant
         // states.
         unsafe { (self.0)(key, buf) }

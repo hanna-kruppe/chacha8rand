@@ -1,10 +1,9 @@
-use arrayref::array_refs;
 use rand_core::{
     block::{BlockRng, BlockRngCore},
     RngCore, SeedableRng,
 };
 
-use crate::{backend_detect, Backend};
+use crate::{backend_detect, Backend, Buffer};
 
 pub struct ChaCha8Rng(BlockRng<ChaCha8Core>);
 
@@ -67,11 +66,10 @@ impl BlockRngCore for ChaCha8Core {
     type Results = U32x248;
 
     fn generate(&mut self, results: &mut Self::Results) {
-        let mut buf = [0; 256];
+        let mut buf = Buffer { words: [0; 256] };
         self.backend.refill(&self.key, &mut buf);
-        let (output, new_key) = array_refs![&buf, 248, 8];
-        results.0 = *output;
-        self.key = *new_key;
+        results.0 = *buf.output();
+        self.key = *buf.new_key();
     }
 }
 
