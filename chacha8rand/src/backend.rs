@@ -24,6 +24,10 @@ impl Backend {
     /// qualifier. For the intended use case of runtime `target_feature` detection, that means the
     /// function must be completely safe *except* for requiring certain target features to be
     /// available, and those target features are in fact available.
+    #[allow(
+        dead_code,
+        reason = "only used on targets with runtime feature detection"
+    )]
     pub(crate) unsafe fn new_unchecked(refill_impl: unsafe fn(&[u32; 8], &mut Buffer)) -> Self {
         // SAFETY: precondition passed on to the caller.
         Self { refill_impl }
