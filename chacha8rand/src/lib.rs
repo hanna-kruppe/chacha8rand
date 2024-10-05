@@ -1,5 +1,13 @@
 #![deny(unsafe_op_in_unsafe_fn)]
-use std::array;
+#![no_std]
+use core::array;
+
+// On x86 we use runtime feature detection, which is currently only supported in std or with
+// third-party libraries. We could use one of those libraries to be no_std even on x86, but I don't
+// have a use case for that so let's just pull in std while we wait for runtime feature detection in
+// core to be implemented and stabilized.
+#[cfg(target_arch = "x86_64")]
+extern crate std;
 
 mod backend;
 mod guts;
@@ -109,5 +117,24 @@ impl ChaCha8 {
         let result = self.buf.output()[self.i];
         self.i += 1;
         result
+    }
+}
+
+// This impl block is here, not in the `backend` mod, to minimize that code that has access to
+// `Backend`'s private fields.
+impl Backend {
+    pub fn scalar() -> Backend {
+        Self::new(guts::scalar::fill_buf)
+    }
+
+    pub fn widex4() -> Backend {
+        Self::new(guts::widex4::fill_buf)
+    }
+
+    pub fn avx2() -> Option<Self> {
+        #[cfg(target_arch = "x86_64")]
+        return guts::avx2::detect();
+        #[allow(unreachable_code)]
+        None
     }
 }

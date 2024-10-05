@@ -1,10 +1,20 @@
 use crate::{
     guts::{C0, C1, C2, C3},
     safe_arch::avx2::Avx2,
-    Buffer,
+    Backend, Buffer,
 };
 use arrayref::{array_mut_ref, mut_array_refs};
 use std::arch::x86_64::__m256i;
+
+pub(crate) fn detect() -> Option<Backend> {
+    if std::is_x86_feature_detected!("avx2") {
+        // SAFETY: `fill_buf` is only unsafe because it enables the AVX2 `target_feature`, and we've
+        // ensured that AVX2 is available, so it's now effectively a safe function.
+        unsafe { Some(Backend::new_unchecked(fill_buf)) }
+    } else {
+        None
+    }
+}
 
 /// # Safety
 ///

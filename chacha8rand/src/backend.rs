@@ -1,4 +1,4 @@
-use crate::{guts, Buffer};
+use crate::Buffer;
 
 // Safety invariant: only constructed with functions that are safe to call. Either because it's
 // actually a safe function, or because the function only requires certain target features that were
@@ -6,36 +6,33 @@ use crate::{guts, Buffer};
 //
 // (The latter case is the whole reason why it's an `unsafe` fn to begin with.)
 #[derive(Clone, Copy)]
-pub struct Backend(unsafe fn(&[u32; 8], &mut Buffer));
+pub struct Backend {
+    refill_impl: unsafe fn(&[u32; 8], &mut Buffer),
+}
 
 impl Backend {
-    pub(crate) fn safe(f: fn(&[u32; 8], &mut Buffer)) -> Self {
-        // Safety: `f` is a safe function.
-        Backend(f)
+    pub(crate) fn new(refill_impl: fn(&[u32; 8], &mut Buffer)) -> Self {
+        // SAFETY: `refill_impl` is a safe function, so it's always safe to call.
+        Backend { refill_impl }
     }
 
-    pub fn scalar() -> Backend {
-        Self::safe(guts::scalar::fill_buf)
-    }
-
-    pub fn widex4() -> Backend {
-        Self::safe(guts::widex4::fill_buf)
-    }
-
-    pub fn avx2() -> Option<Self> {
-        #[cfg(target_arch = "x86_64")]
-        if std::is_x86_feature_detected!("avx2") {
-            // Safety: the function needs AVX2 (which is available in this `if`) and has no
-            // other safety preconditions.
-            return Some(Backend(guts::avx2::fill_buf));
-        }
-        None
+    /// Create a backend from a refill function gated by dynamic feature detection.
+    ///
+    /// ## Safety
+    ///
+    /// The given function must be safe to call, as if it was an ordinary `fn(...)` without `unsafe`
+    /// qualifier. For the intended use case of runtime `target_feature` detection, that means the
+    /// function must be completely safe *except* for requiring certain target features to be
+    /// available, and those target features are in fact available.
+    pub(crate) unsafe fn new_unchecked(refill_impl: unsafe fn(&[u32; 8], &mut Buffer)) -> Self {
+        // SAFETY: precondition passed on to the caller.
+        Self { refill_impl }
     }
 
     #[doc(hidden)]
     pub fn refill(self, key: &[u32; 8], buf: &mut Buffer) {
-        // Safety: function is safe to call because that's literally what this type's invariant
+        // SAFETY: function is safe to call because that's literally what this type's invariant
         // states.
-        unsafe { (self.0)(key, buf) }
+        unsafe { (self.refill_impl)(key, buf) }
     }
 }
