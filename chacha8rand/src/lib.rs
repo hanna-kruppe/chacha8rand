@@ -39,6 +39,10 @@ fn backend_detect() -> Backend {
         // These targets always have 128 bit SIMD available
         return Backend::widex4();
     }
+    if cfg!(target_arch = "wasm32") && cfg!(target_feature = "simd128") {
+        // No dynamic feature detection on wasm.
+        return Backend::widex4();
+    }
     if cfg!(target_arch = "x86") && cfg!(target_feature = "sse2") {
         // The case for the x4 impl is less obvious for 32-bit x86 SIMD because there we only have
         // eight XMM registers, but it's probably no worse than the scalar implementation. TODO:

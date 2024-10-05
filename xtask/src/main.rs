@@ -4,12 +4,14 @@ use xshell::{cmd, Shell};
 xflags! {
     cmd xtask {
         cmd crosstest {}
+        cmd wasmbench {}
     }
 }
 
 fn main() -> xshell::Result<()> {
     match Xtask::from_env_or_exit().subcommand {
         XtaskCmd::Crosstest(Crosstest {}) => crosstest(),
+        XtaskCmd::Wasmbench(Wasmbench {}) => bench_in_wasmtime(),
     }
 }
 
@@ -25,5 +27,17 @@ fn crosstest() -> xshell::Result<()> {
             .env("RUSTFLAGS", "")
             .run()?;
     }
+    Ok(())
+}
+
+fn bench_in_wasmtime() -> xshell::Result<()> {
+    let sh = Shell::new()?;
+    cmd!(
+        sh,
+        "cargo build --release --target wasm32-wasip1 --bin bench"
+    )
+    .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
+    .run()?;
+    cmd!(sh, "wasmtime run target/wasm32-wasip1/release/bench.wasm").run()?;
     Ok(())
 }
