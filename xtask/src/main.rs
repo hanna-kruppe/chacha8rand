@@ -15,6 +15,8 @@ fn main() -> xshell::Result<()> {
     }
 }
 
+const WASM_RUNNER_ENV: &str = "CARGO_TARGET_WASM32_WASIP1_RUNNER";
+
 fn crosstest() -> xshell::Result<()> {
     let sh = Shell::new()?;
     let targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"];
@@ -27,17 +29,17 @@ fn crosstest() -> xshell::Result<()> {
             .env("RUSTFLAGS", "")
             .run()?;
     }
+    cmd!(sh, "cargo test --target wasm32-wasip1")
+        .env(WASM_RUNNER_ENV, "wasmtime")
+        .run()?;
     Ok(())
 }
 
 fn bench_in_wasmtime() -> xshell::Result<()> {
     let sh = Shell::new()?;
-    cmd!(
-        sh,
-        "cargo build --release --target wasm32-wasip1 --bin bench"
-    )
-    .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
-    .run()?;
-    cmd!(sh, "wasmtime run target/wasm32-wasip1/release/bench.wasm").run()?;
+    cmd!(sh, "cargo run --release --target wasm32-wasip1 --bin bench")
+        .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
+        .env(WASM_RUNNER_ENV, "wasmtime")
+        .run()?;
     Ok(())
 }
