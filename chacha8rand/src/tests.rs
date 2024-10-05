@@ -13,7 +13,7 @@ fn test_sample_widex4() {
 #[test]
 #[cfg(target_arch = "x86_64")]
 fn test_sample_avx2() {
-    test_backend(Backend::avx2().expect("this test requires avx2"));
+    test_backend(Backend::x86_avx2().expect("this test requires avx2"));
 }
 
 fn test_backend(backend: Backend) {

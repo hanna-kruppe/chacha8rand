@@ -1,5 +1,17 @@
-#[cfg(target_arch = "x86_64")]
-pub mod avx2;
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(target_arch = "x86_64")] {
+        pub mod avx2;
+    } else {
+        pub mod avx2 {
+            pub fn detect() -> Option<crate::Backend> {
+                None
+            }
+        }
+    }
+}
+
 pub mod scalar;
 pub mod widex4;
 

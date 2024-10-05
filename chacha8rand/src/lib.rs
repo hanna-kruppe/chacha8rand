@@ -66,31 +66,9 @@ impl From<&[u8; 32]> for Seed {
     }
 }
 
-fn backend_detect() -> Backend {
-    if let Some(avx2) = Backend::avx2() {
-        return avx2;
-    }
-    if cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64") {
-        // These targets always have 128 bit SIMD available
-        return Backend::widex4();
-    }
-    if cfg!(target_arch = "wasm32") && cfg!(target_feature = "simd128") {
-        // No dynamic feature detection on wasm.
-        return Backend::widex4();
-    }
-    if cfg!(target_arch = "x86") && cfg!(target_feature = "sse2") {
-        // The case for the x4 impl is less obvious for 32-bit x86 SIMD because there we only have
-        // eight XMM registers, but it's probably no worse than the scalar implementation. TODO:
-        // benchmark it.
-        return Backend::widex4();
-    }
-    // Fallback if we don't know for sure that we have SIMD:
-    Backend::scalar()
-}
-
 impl ChaCha8 {
     pub fn new(seed: Seed) -> Self {
-        Self::with_backend(seed, backend_detect())
+        Self::with_backend(seed, Backend::detect_best())
     }
 
     pub fn with_backend(seed: Seed, backend: Backend) -> Self {
@@ -125,6 +103,29 @@ impl ChaCha8 {
 // This impl block is here, not in the `backend` mod, to minimize that code that has access to
 // `Backend`'s private fields.
 impl Backend {
+    pub fn detect_best() -> Self {
+        if let Some(avx2) = Backend::x86_avx2() {
+            // This is the best choice on x86 when it exists.
+            return avx2;
+        }
+        if cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64") {
+            // These targets always have 128 bit SIMD available.
+            return Backend::widex4();
+        }
+        if cfg!(target_arch = "wasm32") && cfg!(target_feature = "simd128") {
+            // No dynamic feature detection on wasm.
+            return Backend::widex4();
+        }
+        if cfg!(target_arch = "x86") && cfg!(target_feature = "sse2") {
+            // The case for the x4 impl is less obvious for 32-bit x86 SIMD because there we only
+            // have eight XMM registers, but it's probably no worse than the scalar implementation.
+            // TODO: benchmark it.
+            return Backend::widex4();
+        }
+        // Fallback if we don't know for sure that we have SIMD:
+        Backend::scalar()
+    }
+
     pub fn scalar() -> Backend {
         Self::new(guts::scalar::fill_buf)
     }
@@ -133,10 +134,7 @@ impl Backend {
         Self::new(guts::widex4::fill_buf)
     }
 
-    pub fn avx2() -> Option<Self> {
-        #[cfg(target_arch = "x86_64")]
-        return guts::avx2::detect();
-        #[allow(unreachable_code)]
-        None
+    pub fn x86_avx2() -> Option<Self> {
+        guts::avx2::detect()
     }
 }

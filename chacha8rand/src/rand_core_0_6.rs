@@ -3,7 +3,7 @@ use rand_core::{
     RngCore, SeedableRng,
 };
 
-use crate::{backend_detect, Backend, Buffer};
+use crate::{Backend, Buffer};
 
 pub struct ChaCha8Rng(BlockRng<ChaCha8Core>);
 
@@ -31,7 +31,7 @@ impl SeedableRng for ChaCha8Rng {
     fn from_seed(seed: Self::Seed) -> Self {
         Self(BlockRng::new(ChaCha8Core {
             key: crate::Seed::from(seed).0,
-            backend: backend_detect(),
+            backend: Backend::detect_best(),
         }))
     }
 }
