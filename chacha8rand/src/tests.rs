@@ -17,7 +17,11 @@ fn test_sample_avx2() {
 }
 
 #[test]
-#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[cfg(any(
+    target_arch = "x86_64",
+    // because we have no runtime detection for sse2
+    all(target_arch = "x86", target_feature = "sse2"),
+))]
 fn test_sample_sse2() {
     test_backend(Backend::x86_sse2().expect("this test requires sse2"));
 }

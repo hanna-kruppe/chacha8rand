@@ -21,6 +21,7 @@ fn crosstest() -> xshell::Result<()> {
     let sh = Shell::new()?;
     let targets = [
         "aarch64-unknown-linux-gnu",
+        "i586-unknown-linux-gnu",
         "i686-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
     ];
