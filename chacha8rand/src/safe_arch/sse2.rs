@@ -1,5 +1,11 @@
-use core::arch::x86_64::{
-    __m128i, _mm_add_epi32, _mm_set1_epi32, _mm_setr_epi32, _mm_slli_epi32, _mm_srli_epi32,
+#[cfg(target_arch = "x86")]
+use core::arch::x86 as arch;
+#[cfg(target_arch = "x86_64")]
+use core::arch::x86_64 as arch;
+
+pub use arch::__m128i;
+use arch::{
+    _mm_add_epi32, _mm_set1_epi32, _mm_setr_epi32, _mm_slli_epi32, _mm_srli_epi32,
     _mm_storeu_si128, _mm_xor_si128,
 };
 

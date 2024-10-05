@@ -1,10 +1,9 @@
 use crate::{
     guts::{C0, C1, C2, C3},
-    safe_arch::avx2::Avx2,
+    safe_arch::avx2::{Avx2, __m256i},
     Backend, Buffer,
 };
 use arrayref::{array_mut_ref, mut_array_refs};
-use std::arch::x86_64::__m256i;
 
 pub(crate) fn detect() -> Option<Backend> {
     if std::is_x86_feature_detected!("avx2") {

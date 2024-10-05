@@ -6,7 +6,7 @@
 //! * Only supports the handful of operations needed for implementing chacha8rand
 //! * Lacks documentation and coherent naming conventions conventions
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 pub mod avx2;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]

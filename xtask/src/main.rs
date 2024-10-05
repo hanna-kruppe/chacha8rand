@@ -19,7 +19,11 @@ const WASM_RUNNER_ENV: &str = "CARGO_TARGET_WASM32_WASIP1_RUNNER";
 
 fn crosstest() -> xshell::Result<()> {
     let sh = Shell::new()?;
-    let targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"];
+    let targets = [
+        "aarch64-unknown-linux-gnu",
+        "i686-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+    ];
     for target in targets {
         // Testing the x86_64 target on an x86_64 host means rustflags from $CARGO_HOME/.config.toml
         // are picked up within the container. This is a problem if those contain

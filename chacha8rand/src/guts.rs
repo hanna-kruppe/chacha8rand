@@ -1,7 +1,7 @@
 use cfg_if::cfg_if;
 
 cfg_if! {
-    if #[cfg(target_arch = "x86_64")] {
+    if #[cfg(any(target_arch = "x86_64", target_arch = "x86"))] {
         pub mod avx2;
     } else {
         pub mod avx2 {
@@ -33,8 +33,7 @@ cfg_if! {
 }
 
 cfg_if! {
-    // TODO: what about 32-bit x86?
-    if #[cfg(all(target_arch = "x86_64", target_feature ="sse2"))] {
+    if #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature ="sse2"))] {
         pub mod sse2;
     } else {
         pub mod sse2 {

@@ -1,10 +1,8 @@
-use core::arch::x86_64::__m128i;
-
 use arrayref::array_mut_ref;
 
 use crate::guts::{C0, C1, C2, C3};
 use crate::safe_arch::sse2::{
-    add_u32, from_elems, shift_left_u32, shift_right_u32, splat, store_u32x4, xor,
+    __m128i, add_u32, from_elems, shift_left_u32, shift_right_u32, splat, store_u32x4, xor,
 };
 use crate::{Backend, Buffer};
 
