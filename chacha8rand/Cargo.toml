@@ -3,6 +3,11 @@ name = "chacha8rand"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+rand_core_0_6 = ["rand_core"]
+
 [dependencies]
 arrayref = "0.3.9"
+rand_core = { version = "0.6.4", default-features = false, optional = true }
 wide = "0.7.28"

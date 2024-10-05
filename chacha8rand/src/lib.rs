@@ -2,10 +2,13 @@ use std::array;
 
 mod backend;
 mod guts;
+#[cfg(feature = "rand_core_0_6")]
+pub mod rand_core_0_6;
 #[cfg(test)]
 mod tests;
 
 use arrayref::{array_ref, array_refs};
+
 pub use backend::Backend;
 
 pub struct ChaCha8 {

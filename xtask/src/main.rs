@@ -25,9 +25,12 @@ fn crosstest() -> xshell::Result<()> {
         // are picked up within the container. This is a problem if those contain
         // -Clink-arg=-fuse-lld, which doesn't work inside the container. Setting the RUSTFLAGS
         // variable overrides the flags from the config files.
-        cmd!(sh, "cross test --target {target} --all-targets")
-            .env("RUSTFLAGS", "")
-            .run()?;
+        cmd!(
+            sh,
+            "cross test --target {target} --all-targets --all-features"
+        )
+        .env("RUSTFLAGS", "")
+        .run()?;
     }
     cmd!(sh, "cargo test --target wasm32-wasip1")
         .env(WASM_RUNNER_ENV, "wasmtime")

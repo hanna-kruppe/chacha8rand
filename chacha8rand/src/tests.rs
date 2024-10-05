@@ -2,29 +2,36 @@ use crate::{Backend, ChaCha8, Seed};
 
 #[test]
 fn test_sample_scalar() {
-    test_sample_with(Backend::scalar());
+    test_backend(Backend::scalar());
 }
 
 #[test]
 fn test_sample_widex4() {
-    test_sample_with(Backend::widex4());
+    test_backend(Backend::widex4());
 }
 
 #[test]
 #[cfg(target_arch = "x86_64")]
 fn test_sample_avx2() {
-    test_sample_with(Backend::avx2().expect("this test requires avx2"));
+    test_backend(Backend::avx2().expect("this test requires avx2"));
 }
 
-fn test_sample_with(backend: Backend) {
+fn test_backend(backend: Backend) {
     let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
-    for sample in SAMPLE_OUTPUT_U64LE.iter().copied() {
-        assert_eq!(rng.next_u32(), sample as u32);
-        assert_eq!(rng.next_u32(), (sample >> 32) as u32);
+    test_sample_output(&mut || {
+        let lo = rng.next_u32();
+        let hi = rng.next_u32();
+        u64::from(lo) | (u64::from(hi) << 32)
+    });
+}
+
+pub fn test_sample_output(next_u64: &mut dyn FnMut() -> u64) {
+    for &sample in SAMPLE_OUTPUT_U64LE.iter() {
+        assert_eq!(next_u64(), sample);
     }
 }
 
-const SAMPLE_SEED: [u8; 32] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+pub const SAMPLE_SEED: [u8; 32] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
 
 #[rustfmt::skip]
 const SAMPLE_OUTPUT_U64LE: &[u64] = &[
