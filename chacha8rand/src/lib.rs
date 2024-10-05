@@ -21,11 +21,10 @@ use arrayref::array_ref;
 
 pub use backend::Backend;
 
-// This is repr(C) because rustc's heuristic for minimizing padding puts the buffer first, which
-// doesn't actually reduce padding compared to this layout and increases the offsets of all fields
-// to slightly more than 1000 bytes. That's still within the range of immediate offsets for
-// loads/stores in most instruction sets, but takes slightly more space to encode in Webassembly.
-#[repr(C)]
+// Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
+// the highest alignment. There are other layouts that also minimize padding, but the one rustc
+// picks happen to generate slightly better code for `next_u32` on some targets (e.g., on aarch64,
+// it avoids computing the address of the buffer before checking if it needs to be refilled).
 pub struct ChaCha8 {
     backend: Backend,
     i: usize,
