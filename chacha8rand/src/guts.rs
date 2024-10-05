@@ -12,6 +12,26 @@ cfg_if! {
     }
 }
 
+cfg_if! {
+    if #[cfg(all(
+        target_arch = "aarch64",
+        target_feature = "neon",
+        target_endian = "little",
+    ))] {
+        // Limit this to little-endian because the core::arch intrinsics currently don't work on
+        // aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they worked, it's a
+        // pretty obscure target and difficult to test for (e.g., `cross` doesn't currently support
+        // it) so I'm inclined to leave this out until someone champions it.
+        pub mod neon;
+    } else {
+        pub mod neon {
+            pub fn detect() -> Option<crate::Backend> {
+                None
+            }
+        }
+    }
+}
+
 pub mod scalar;
 pub mod widex4;
 

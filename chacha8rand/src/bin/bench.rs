@@ -36,11 +36,17 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     if let Some(avx2) = Backend::x86_avx2() {
         benchmarks.push(bench_next_u32("avx2", avx2));
     }
+    if let Some(neon) = Backend::aarch64_neon() {
+        benchmarks.push(bench_next_u32("neon", neon));
+    }
 
     benchmarks.push(bench_bulk("scalar", Backend::scalar()));
     benchmarks.push(bench_bulk("widex4", Backend::widex4()));
     if let Some(avx2) = Backend::x86_avx2() {
         benchmarks.push(bench_bulk("avx2", avx2));
+    }
+    if let Some(neon) = Backend::aarch64_neon() {
+        benchmarks.push(bench_bulk("neon", neon));
     }
 
     benchmarks

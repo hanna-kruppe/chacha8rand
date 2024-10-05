@@ -16,6 +16,12 @@ fn test_sample_avx2() {
     test_backend(Backend::x86_avx2().expect("this test requires avx2"));
 }
 
+#[test]
+#[cfg(target_arch = "aarch64")]
+fn test_sample_neon() {
+    test_backend(Backend::aarch64_neon().expect("this test requires neon"));
+}
+
 fn test_backend(backend: Backend) {
     let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
     test_sample_output(&mut || {

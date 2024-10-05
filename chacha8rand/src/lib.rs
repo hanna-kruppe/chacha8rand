@@ -108,7 +108,10 @@ impl Backend {
             // This is the best choice on x86 when it exists.
             return avx2;
         }
-        if cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64") {
+        if let Some(neon) = Backend::aarch64_neon() {
+            return neon;
+        }
+        if cfg!(target_arch = "x86_64") {
             // These targets always have 128 bit SIMD available.
             return Backend::widex4();
         }
@@ -136,5 +139,9 @@ impl Backend {
 
     pub fn x86_avx2() -> Option<Self> {
         guts::avx2::detect()
+    }
+
+    pub fn aarch64_neon() -> Option<Self> {
+        guts::neon::detect()
     }
 }
