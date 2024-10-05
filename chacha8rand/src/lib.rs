@@ -1,9 +1,11 @@
+#![deny(unsafe_op_in_unsafe_fn)]
 use std::array;
 
 mod backend;
 mod guts;
 #[cfg(feature = "rand_core_0_6")]
 pub mod rand_core_0_6;
+mod safe_arch;
 #[cfg(test)]
 mod tests;
 
