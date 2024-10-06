@@ -72,11 +72,3 @@ impl BlockRngCore for ChaCha8Core {
         self.key = *buf.new_key();
     }
 }
-
-#[test]
-fn test_block_rng() {
-    use crate::tests::{test_sample_output, SAMPLE_SEED};
-
-    let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
-    test_sample_output(&mut || rng.next_u64());
-}

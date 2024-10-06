@@ -1,50 +1,107 @@
+use core::iter;
+
 use crate::{Backend, ChaCha8, Seed};
 
-#[test]
-fn test_sample_scalar() {
-    test_backend(Backend::scalar());
+macro_rules! test_backends {
+    (
+        $(
+            $(#[$($cfg:meta)*])?
+            $name:ident => $ctor:expr;
+        )+
+    ) => {
+        $(
+            $(#[$($cfg)*])?
+            mod $name {
+                use crate::Backend;
+
+                #[test]
+                fn sample_output_u32s() {
+                    super::sample_output_u32s($ctor);
+                }
+
+                #[test]
+                fn sample_output_u64s() {
+                    super::sample_output_u64s($ctor);
+                }
+            }
+        )+
+    };
 }
 
-#[test]
-fn test_sample_widex4() {
-    test_backend(Backend::widex4());
+test_backends! {
+    scalar => Backend::scalar();
+    widex4 => Backend::widex4();
+    #[cfg(any(
+        target_arch = "x86_64",
+        // because we have no runtime detection for sse2
+        all(target_arch = "x86", target_feature = "sse2"),
+    ))]
+    sse2 => Backend::x86_sse2().expect("this test requires sse2");
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    avx2 => Backend::x86_avx2().expect("this test requires sse2");
+    #[cfg(target_arch = "aarch64")]
+    neon => Backend::aarch64_neon().expect("this test requires neon");
 }
 
-#[test]
-#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-fn test_sample_avx2() {
-    test_backend(Backend::x86_avx2().expect("this test requires avx2"));
-}
-
-#[test]
-#[cfg(any(
-    target_arch = "x86_64",
-    // because we have no runtime detection for sse2
-    all(target_arch = "x86", target_feature = "sse2"),
-))]
-fn test_sample_sse2() {
-    test_backend(Backend::x86_sse2().expect("this test requires sse2"));
-}
-
-#[test]
-#[cfg(target_arch = "aarch64")]
-fn test_sample_neon() {
-    test_backend(Backend::aarch64_neon().expect("this test requires neon"));
-}
-
-fn test_backend(backend: Backend) {
+fn sample_output_u32s(backend: Backend) {
     let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
-    test_sample_output(&mut || {
-        let lo = rng.next_u32();
-        let hi = rng.next_u32();
-        u64::from(lo) | (u64::from(hi) << 32)
-    });
+    let u32s = iter::repeat_with(move || rng.next_u32());
+    check_byte_output(u32s.flat_map(u32::to_le_bytes));
 }
 
-pub fn test_sample_output(next_u64: &mut dyn FnMut() -> u64) {
-    for &sample in SAMPLE_OUTPUT_U64LE.iter() {
-        assert_eq!(next_u64(), sample);
+fn sample_output_u64s(backend: Backend) {
+    let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
+    let u64s = iter::repeat_with(move || rng.next_u64());
+    check_byte_output(u64s.flat_map(u64::to_le_bytes));
+}
+
+#[cfg(feature = "rand_core_0_6")]
+mod rand06 {
+    use core::iter;
+
+    use crate::rand_core_0_6::ChaCha8Rng;
+    use rand_core::{RngCore, SeedableRng};
+
+    use super::{check_byte_output, SAMPLE_OUTPUT_U64LE, SAMPLE_SEED};
+
+    #[test]
+    fn next_u32() {
+        let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
+        let u32s = iter::repeat_with(|| rng.next_u32());
+        check_byte_output(u32s.flat_map(u32::to_le_bytes));
     }
+
+    #[test]
+    fn next_u64() {
+        let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
+        let u64s = iter::repeat_with(|| rng.next_u64());
+        check_byte_output(u64s.flat_map(u64::to_le_bytes));
+    }
+
+    #[test]
+    fn fill_bytes() {
+        let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
+        let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
+        rng.fill_bytes(&mut bytes);
+        check_byte_output(bytes.iter().copied());
+    }
+}
+
+fn expected_bytes() -> impl Iterator<Item = u8> {
+    SAMPLE_OUTPUT_U64LE.iter().flat_map(|n| n.to_le_bytes())
+}
+
+fn check_byte_output(output: impl IntoIterator<Item = u8>) {
+    let mut count = 0;
+    for (output_byte, expected_byte) in iter::zip(output, expected_bytes()) {
+        assert_eq!(output_byte, expected_byte);
+        count += 1;
+    }
+    assert_eq!(
+        count,
+        SAMPLE_OUTPUT_U64LE.len() * 8,
+        "output ended prematurely"
+    );
 }
 
 pub const SAMPLE_SEED: [u8; 32] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";

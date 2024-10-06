@@ -98,6 +98,12 @@ impl ChaCha8 {
         self.i += 1;
         result
     }
+
+    pub fn next_u64(&mut self) -> u64 {
+        let lo_half = u64::from(self.next_u32());
+        let hi_half = u64::from(self.next_u32());
+        (hi_half << 32) | lo_half
+    }
 }
 
 // This impl block is here, not in the `backend` mod, to minimize that code that has access to
