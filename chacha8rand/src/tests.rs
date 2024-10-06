@@ -86,6 +86,27 @@ mod rand06 {
         rng.fill_bytes(&mut bytes);
         check_byte_output(bytes.iter().copied());
     }
+
+    #[test]
+    fn interleave_words_and_bytes() {
+        // This test relies on fill_bytes not consuming more u32s than necessary, which is a bit
+        // iffy but in practice should be fine. If the test breaks, I guess we'll have to stop using
+        // the rand_core helper to implement fill_bytes.
+        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let mut i: u32 = 0;
+        let interleaved = iter::repeat_with(|| {
+            i += 1;
+            if i % 2 == 0 {
+                rng.next_u32().to_le_bytes()
+            } else {
+                let mut bytes = [0; 4];
+                rng.fill_bytes(&mut bytes);
+                bytes
+            }
+        })
+        .flatten();
+        check_byte_output(interleaved);
+    }
 }
 
 fn expected_bytes() -> impl Iterator<Item = u8> {

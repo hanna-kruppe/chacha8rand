@@ -1,4 +1,4 @@
-use rand_core::{RngCore, SeedableRng};
+use rand_core::{impls::fill_via_u32_chunks, RngCore, SeedableRng};
 
 use crate::ChaCha8;
 
@@ -12,8 +12,17 @@ impl RngCore for ChaCha8 {
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        // TODO: fill_via_u32_chunks might be faster, but is also more fiddly to implement
-        rand_core::impls::fill_bytes_via_next(self, dest);
+        let mut total_filled = 0;
+        while total_filled < dest.len() {
+            let buffered = self.buf.output();
+            if self.i >= buffered.len() {
+                self.refill();
+            }
+            let src = &self.buf.output()[self.i..];
+            let (consumed_u32, filled_u8) = fill_via_u32_chunks(src, &mut dest[total_filled..]);
+            self.i += consumed_u32;
+            total_filled += filled_u8;
+        }
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {

@@ -83,6 +83,13 @@ impl ChaCha8 {
         this
     }
 
+    #[inline]
+    fn refill(&mut self) {
+        self.seed = *self.buf.new_key();
+        self.backend.refill(&self.seed, &mut self.buf);
+        self.i = 0;
+    }
+
     pub fn next_u32(&mut self) -> u32 {
         // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
         // is unlikely. For example, #[cold] on Backend::refill is ignored at the time of this
@@ -90,9 +97,7 @@ impl ChaCha8 {
         // generate the least bad assembly when compiled in isolation. (Of course, in practice we
         // want it to be inlined.)
         if self.i >= self.buf.output().len() {
-            self.seed = *self.buf.new_key();
-            self.backend.refill(&self.seed, &mut self.buf);
-            self.i = 0;
+            self.refill();
         }
         let result = self.buf.output()[self.i];
         self.i += 1;
