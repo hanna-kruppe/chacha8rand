@@ -1,11 +1,10 @@
 use std::{
-    array, cmp,
+    cmp,
     hint::black_box,
     time::{Duration, Instant},
 };
 
-use arrayref::array_ref;
-use chacha8rand::{Backend, Buffer, ChaCha8, Seed};
+use chacha8rand::{Backend, ChaCha8, Seed};
 
 fn main() {
     println!("label,min,p10,p50,p90,max,min_repeats,max_repeats");
@@ -29,51 +28,36 @@ fn main() {
 }
 
 fn collect_benchmarks() -> Vec<Benchmark> {
+    let mut backends = Vec::new();
+    backends.push(("scalar", Backend::scalar()));
+    if let Some(sse2) = Backend::x86_sse2() {
+        backends.push(("sse2", sse2));
+    }
+    if let Some(avx2) = Backend::x86_avx2() {
+        backends.push(("avx2", avx2));
+    }
+    if let Some(neon) = Backend::aarch64_neon() {
+        backends.push(("neon", neon));
+    }
+    if let Some(simd128) = Backend::wasm32_simd128() {
+        backends.push(("simd128", simd128));
+    }
+
     let mut benchmarks = Vec::new();
 
-    benchmarks.push(bench_next_u32("scalar", Backend::scalar()));
-    if let Some(sse2) = Backend::x86_sse2() {
-        benchmarks.push(bench_next_u32("sse2", sse2));
-    }
-    if let Some(avx2) = Backend::x86_avx2() {
-        benchmarks.push(bench_next_u32("avx2", avx2));
-    }
-    if let Some(neon) = Backend::aarch64_neon() {
-        benchmarks.push(bench_next_u32("neon", neon));
-    }
-    if let Some(simd128) = Backend::wasm32_simd128() {
-        benchmarks.push(bench_next_u32("simd128", simd128));
+    for (backend_name, backend) in &backends {
+        benchmarks.push(bench_next_u32(backend_name, *backend));
     }
 
-    benchmarks.push(bench_bulk("scalar", Backend::scalar()));
-    if let Some(sse2) = Backend::x86_sse2() {
-        benchmarks.push(bench_bulk("sse2", sse2));
+    for (backend_name, backend) in &backends {
+        // Each iteration generates 1024 bytes internally, but 32 of those are new key material, so
+        // reading 1024 - 32 bytes is the "best case" buffer size. For comparison and to exercise
+        // the partial read code path, we also benchmark with an odd buffer size that's as close to
+        // 10% of the larger size as possible.
+        for read_size in [99, 1024 - 32] {
+            benchmarks.push(bench_bulk(backend_name, *backend, vec![0; read_size]))
+        }
     }
-    if let Some(avx2) = Backend::x86_avx2() {
-        benchmarks.push(bench_bulk("avx2", avx2));
-    }
-    if let Some(neon) = Backend::aarch64_neon() {
-        benchmarks.push(bench_bulk("neon", neon));
-    }
-    if let Some(simd128) = Backend::wasm32_simd128() {
-        benchmarks.push(bench_bulk("simd128", simd128));
-    }
-
-    #[cfg(feature = "rand_core_0_6")]
-    benchmarks.push(Benchmark {
-        label: "bulk/fill_bytes".into(),
-        work: Box::new(move |n| {
-            use rand_core::RngCore;
-            let mut rng = ChaCha8::new(Seed::from(SEED));
-            // Each iteration generates 1024 - 32 bytes of output + 32 bytes of new key material to
-            // match the work done by the other "bulk" benchmarks.
-            let mut output = [0; 1024 - 32];
-            for _ in 0..n {
-                let dest = black_box(&mut output);
-                rng.fill_bytes(dest);
-            }
-        }),
-    });
 
     benchmarks
 }
@@ -162,17 +146,15 @@ fn bench_next_u32(backend_name: &str, backend: Backend) -> Benchmark {
     }
 }
 
-fn bench_bulk(backend_name: &str, backend: Backend) -> Benchmark {
-    let mut key = array::from_fn(|i| u32::from_le_bytes(*array_ref![SEED, i * 4, 4]));
-    let mut buf = Buffer { words: [0; 256] };
+fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchmark {
+    let label = format!("bulk/{n}/{backend_name}", n = dest.len());
     Benchmark {
-        label: format!("bulk/{backend_name}"),
+        label,
         work: Box::new(move |n| {
+            let mut rng = ChaCha8::with_backend(Seed::from(SEED), backend);
             for _ in 0..n {
-                black_box(&mut key);
-                backend.refill(&key, &mut buf);
-                key = *array_ref![buf.words, 256 - 8, 8];
-                black_box(&buf);
+                rng.read_bytes(&mut dest);
+                black_box(&mut dest);
             }
         }),
     }

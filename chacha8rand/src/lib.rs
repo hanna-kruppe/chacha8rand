@@ -30,8 +30,8 @@ pub struct ChaCha8 {
 // is occasionally useful. Since we don't do 512-bit SIMD, 32-byte alignment is sufficient.
 #[repr(align(32))]
 #[derive(Clone)]
-pub struct Buffer {
-    pub words: [u32; 256],
+struct Buffer {
+    words: [u32; 256],
 }
 
 impl Buffer {
@@ -149,7 +149,8 @@ impl ChaCha8 {
             total_bytes_read += single_read_bytes;
             self.i += single_read_words;
             debug_assert!(self.i <= self.buf.output().len());
-            debug_assert!(total_bytes_read < dest.len() || (single_read_bytes % 4 == 0));
+            // We only ever read a word partially on the last iteration.
+            debug_assert!(total_bytes_read == dest.len() || (single_read_bytes % 4 == 0));
         }
         debug_assert!(total_bytes_read == dest.len());
     }
