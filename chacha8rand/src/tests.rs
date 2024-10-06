@@ -68,14 +68,14 @@ mod rand06 {
     #[test]
     fn next_u32() {
         let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
-        let u32s = iter::repeat_with(|| rng.next_u32());
+        let u32s = iter::repeat_with(|| RngCore::next_u32(&mut rng));
         check_byte_output(u32s.flat_map(u32::to_le_bytes));
     }
 
     #[test]
     fn next_u64() {
         let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
-        let u64s = iter::repeat_with(|| rng.next_u64());
+        let u64s = iter::repeat_with(|| RngCore::next_u64(&mut rng));
         check_byte_output(u64s.flat_map(u64::to_le_bytes));
     }
 
@@ -85,6 +85,18 @@ mod rand06 {
         let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
         rng.fill_bytes(&mut bytes);
         check_byte_output(bytes.iter().copied());
+    }
+
+    #[test]
+    fn fill_bytes_u64_granularity() {
+        // fill_bytes calls in chunks of 8 bytes should behave the same as next_u64
+        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let chunks = iter::repeat_with(|| {
+            let mut chunk = [0; 8];
+            rng.fill_bytes(&mut chunk);
+            chunk
+        });
+        check_byte_output(chunks.flatten());
     }
 
     #[test]
