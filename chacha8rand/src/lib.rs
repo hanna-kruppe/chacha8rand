@@ -21,54 +21,6 @@ use arrayref::array_ref;
 
 pub use backend::Backend;
 
-macro_rules! arch_backends {
-    (#[cfg($($cond:meta)*)] mod $name:ident; $($rest:tt)*) => {
-        #[cfg($($cond)*)]
-        mod $name {
-            mod safe_arch;
-            mod backend;
-            pub(crate) use backend::detect;
-        }
-
-        #[cfg(not($($cond)*))]
-        mod $name {
-            pub fn detect() -> Option<crate::Backend> {
-                None
-            }
-        }
-
-        arch_backends! { $($rest)* }
-    };
-
-    () => {};
-}
-
-arch_backends! {
-    // This backend uses dynamic feature detection, so it's only gated on `target_arch` and not on
-    // `target_feature = "avx2"`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-    mod avx2;
-
-    // For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
-    // also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high
-    // chance that AVX2 is available at runtime.
-    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature = "sse2"))]
-    mod sse2;
-
-    // The neon backend is limited to little-endian because the core::arch intrinsics currently
-    // don't work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they
-    // worked, it's a pretty obscure target and difficult to test for (e.g., `cross` doesn't
-    // currently support it) so I'm inclined to leave this out until someone champions it.
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
-    mod neon;
-}
-
-// The constant words in the first row of the initial state
-const C0: u32 = u32::from_le_bytes(*b"expa");
-const C1: u32 = u32::from_le_bytes(*b"nd 3");
-const C2: u32 = u32::from_le_bytes(*b"2-by");
-const C3: u32 = u32::from_le_bytes(*b"te k");
-
 // Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
 // the highest alignment. There are other layouts that also minimize padding, but the one rustc
 // picks happen to generate slightly better code for `next_u32` on some targets (e.g., on aarch64,
@@ -158,6 +110,54 @@ impl ChaCha8 {
         (hi_half << 32) | lo_half
     }
 }
+
+macro_rules! arch_backends {
+    (#[cfg($($cond:meta)*)] mod $name:ident; $($rest:tt)*) => {
+        #[cfg($($cond)*)]
+        mod $name {
+            mod safe_arch;
+            mod backend;
+            pub(crate) use backend::detect;
+        }
+
+        #[cfg(not($($cond)*))]
+        mod $name {
+            pub fn detect() -> Option<crate::Backend> {
+                None
+            }
+        }
+
+        arch_backends! { $($rest)* }
+    };
+
+    () => {};
+}
+
+arch_backends! {
+    // This backend uses dynamic feature detection, so it's only gated on `target_arch` and not on
+    // `target_feature = "avx2"`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    mod avx2;
+
+    // For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
+    // also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high
+    // chance that AVX2 is available at runtime.
+    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature = "sse2"))]
+    mod sse2;
+
+    // The neon backend is limited to little-endian because the core::arch intrinsics currently
+    // don't work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they
+    // worked, it's a pretty obscure target and difficult to test for (e.g., `cross` doesn't
+    // currently support it) so I'm inclined to leave this out until someone champions it.
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
+    mod neon;
+}
+
+// The constant words in the first row of the initial state
+const C0: u32 = u32::from_le_bytes(*b"expa");
+const C1: u32 = u32::from_le_bytes(*b"nd 3");
+const C2: u32 = u32::from_le_bytes(*b"2-by");
+const C3: u32 = u32::from_le_bytes(*b"te k");
 
 // This impl block is here, not in the `backend` mod, to minimize that code that has access to
 // `Backend`'s private fields.
