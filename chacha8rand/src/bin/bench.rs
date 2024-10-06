@@ -55,6 +55,22 @@ fn collect_benchmarks() -> Vec<Benchmark> {
         benchmarks.push(bench_bulk("neon", neon));
     }
 
+    #[cfg(feature = "rand_core_0_6")]
+    benchmarks.push(Benchmark {
+        label: "bulk/fill_bytes".into(),
+        work: Box::new(move |n| {
+            use rand_core::RngCore;
+            let mut rng = ChaCha8::new(Seed::from(SEED));
+            // Each iteration generates 1024 - 32 bytes of output + 32 bytes of new key material to
+            // match the work done by the other "bulk" benchmarks.
+            let mut output = [0; 1024 - 32];
+            for _ in 0..n {
+                let dest = black_box(&mut output);
+                rng.fill_bytes(dest);
+            }
+        }),
+    });
+
     benchmarks
 }
 
