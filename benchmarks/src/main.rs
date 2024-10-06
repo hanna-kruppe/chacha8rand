@@ -5,6 +5,7 @@ use std::{
 };
 
 use chacha8rand::{Backend, ChaCha8Rand};
+use rand_core::{RngCore, SeedableRng};
 
 fn main() {
     println!("label,min,p10,p50,p90,max,min_repeats,max_repeats");
@@ -48,15 +49,21 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     for (backend_name, backend) in &backends {
         benchmarks.push(bench_next_u32(backend_name, *backend));
     }
+    benchmarks.push(bench_next_u32_rand_chacha());
 
+    // Each iteration generates 1024 bytes internally, but 32 of those are new key material, so
+    // reading 1024 - 32 bytes is the "best case" buffer size for us (not quite for conventional
+    // chacha20/8 without key erasure). For comparison and to exercise the partial read code path,
+    // we also benchmark with an odd buffer size that's as close to 10% of the larger size as
+    // possible.
+    let interesting_read_sizes = [99, 1024 - 32];
     for (backend_name, backend) in &backends {
-        // Each iteration generates 1024 bytes internally, but 32 of those are new key material, so
-        // reading 1024 - 32 bytes is the "best case" buffer size. For comparison and to exercise
-        // the partial read code path, we also benchmark with an odd buffer size that's as close to
-        // 10% of the larger size as possible.
-        for read_size in [99, 1024 - 32] {
-            benchmarks.push(bench_bulk(backend_name, *backend, vec![0; read_size]))
+        for read_size in interesting_read_sizes {
+            benchmarks.push(bench_bulk(backend_name, *backend, vec![0; read_size]));
         }
+    }
+    for read_size in interesting_read_sizes {
+        benchmarks.push(bench_bulk_rand_chacha(vec![0; read_size]));
     }
 
     benchmarks
@@ -146,6 +153,18 @@ fn bench_next_u32(backend_name: &str, backend: Backend) -> Benchmark {
     }
 }
 
+fn bench_next_u32_rand_chacha() -> Benchmark {
+    let mut rng = rand_chacha::ChaCha8Rng::from_seed(*SEED);
+    Benchmark {
+        label: "next_u32/rand_chacha".to_string(),
+        work: Box::new(move |n| {
+            for _ in 0..n {
+                black_box(rng.next_u32());
+            }
+        }),
+    }
+}
+
 fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchmark {
     let label = format!("bulk/{n}/{backend_name}", n = dest.len());
     Benchmark {
@@ -154,6 +173,20 @@ fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchm
             let mut rng = ChaCha8Rand::with_backend(SEED, backend);
             for _ in 0..n {
                 rng.read_bytes(&mut dest);
+                black_box(&mut dest);
+            }
+        }),
+    }
+}
+
+fn bench_bulk_rand_chacha(mut dest: Vec<u8>) -> Benchmark {
+    let label = format!("bulk/{n}/rand_chacha", n = dest.len());
+    Benchmark {
+        label,
+        work: Box::new(move |n| {
+            let mut rng = rand_chacha::ChaCha8Rng::from_seed(*SEED);
+            for _ in 0..n {
+                rng.fill_bytes(&mut dest);
                 black_box(&mut dest);
             }
         }),
