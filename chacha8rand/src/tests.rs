@@ -59,28 +59,29 @@ fn sample_output_u64s(backend: Backend) {
 mod rand06 {
     use core::iter;
 
-    use crate::rand_core_0_6::ChaCha8Rng;
     use rand_core::{RngCore, SeedableRng};
+
+    use crate::ChaCha8;
 
     use super::{check_byte_output, SAMPLE_OUTPUT_U64LE, SAMPLE_SEED};
 
     #[test]
     fn next_u32() {
-        let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
         let u32s = iter::repeat_with(|| rng.next_u32());
         check_byte_output(u32s.flat_map(u32::to_le_bytes));
     }
 
     #[test]
     fn next_u64() {
-        let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
         let u64s = iter::repeat_with(|| rng.next_u64());
         check_byte_output(u64s.flat_map(u64::to_le_bytes));
     }
 
     #[test]
     fn fill_bytes() {
-        let mut rng = ChaCha8Rng::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
         let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
         rng.fill_bytes(&mut bytes);
         check_byte_output(bytes.iter().copied());
