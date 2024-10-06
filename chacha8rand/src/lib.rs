@@ -21,8 +21,8 @@ use arrayref::array_ref;
 
 pub use backend::Backend;
 
-macro_rules! arch_backend {
-    (#[cfg($($cond:meta)*)] mod $name:ident;) => {
+macro_rules! arch_backends {
+    (#[cfg($($cond:meta)*)] mod $name:ident; $($rest:tt)*) => {
         #[cfg($($cond)*)]
         mod $name {
             mod safe_arch;
@@ -36,29 +36,29 @@ macro_rules! arch_backend {
                 None
             }
         }
+
+        arch_backends! { $($rest)* }
     };
+
+    () => {};
 }
 
-// This backend uses dynamic feature detection, so it's only gated on `target_arch` and not on
-// `target_feature = "avx2"`.
-arch_backend! {
+arch_backends! {
+    // This backend uses dynamic feature detection, so it's only gated on `target_arch` and not on
+    // `target_feature = "avx2"`.
     #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     mod avx2;
-}
 
-// For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
-// also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high chance
-// that AVX2 is available at runtime.
-arch_backend! {
+    // For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
+    // also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high
+    // chance that AVX2 is available at runtime.
     #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature = "sse2"))]
     mod sse2;
-}
 
-// The neon backend is limited to little-endian because the core::arch intrinsics currently don't
-// work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they worked, it's a
-// pretty obscure target and difficult to test for (e.g., `cross` doesn't currently support it) so
-// I'm inclined to leave this out until someone champions it.
-arch_backend! {
+    // The neon backend is limited to little-endian because the core::arch intrinsics currently
+    // don't work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they
+    // worked, it's a pretty obscure target and difficult to test for (e.g., `cross` doesn't
+    // currently support it) so I'm inclined to leave this out until someone champions it.
     #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
     mod neon;
 }
