@@ -176,7 +176,7 @@ fn words_as_ne_bytes<'a>(words: &'a [u32]) -> &'a [u8] {
 
 impl fmt::Debug for ChaCha8 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(core::any::type_name::<Self>())
+        f.write_str("ChaCha8 {}")
     }
 }
 
