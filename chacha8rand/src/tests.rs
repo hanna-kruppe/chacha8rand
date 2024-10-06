@@ -127,16 +127,12 @@ fn expected_bytes() -> impl Iterator<Item = u8> {
 }
 
 fn check_byte_output(output: impl IntoIterator<Item = u8>) {
-    let mut count = 0;
+    let mut i = 0;
     for (output_byte, expected_byte) in iter::zip(output, expected_bytes()) {
-        assert_eq!(output_byte, expected_byte);
-        count += 1;
+        assert_eq!(output_byte, expected_byte, "byte {i} differs");
+        i += 1;
     }
-    assert_eq!(
-        count,
-        SAMPLE_OUTPUT_U64LE.len() * 8,
-        "output ended prematurely"
-    );
+    assert_eq!(i, SAMPLE_OUTPUT_U64LE.len() * 8, "output ended prematurely");
 }
 
 pub const SAMPLE_SEED: [u8; 32] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";

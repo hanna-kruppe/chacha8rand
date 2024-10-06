@@ -1,6 +1,6 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![no_std]
-use core::{array, fmt};
+use core::{array, cmp, fmt, slice};
 
 mod backend;
 #[cfg(feature = "rand_core_0_6")]
@@ -9,7 +9,7 @@ mod scalar;
 #[cfg(test)]
 mod tests;
 
-use arrayref::array_ref;
+use arrayref::{array_mut_ref, array_ref};
 
 pub use backend::Backend;
 
@@ -37,6 +37,10 @@ pub struct Buffer {
 impl Buffer {
     fn output(&self) -> &[u32; 248] {
         array_ref![&self.words, 0, 248]
+    }
+
+    fn output_mut(&mut self) -> &mut [u32; 248] {
+        array_mut_ref![&mut self.words, 0, 248]
     }
 
     fn new_key(&self) -> &[u32; 8] {
@@ -84,13 +88,17 @@ impl ChaCha8 {
         self.i = 0;
     }
 
+    fn need_refill(&self) -> bool {
+        self.i >= self.buf.output().len()
+    }
+
     pub fn next_u32(&mut self) -> u32 {
         // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
         // is unlikely. For example, #[cold] on Backend::refill is ignored at the time of this
         // writing. Out of the various ways I've tried writing this function, this one seems to
         // generate the least bad assembly when compiled in isolation. (Of course, in practice we
         // want it to be inlined.)
-        if self.i >= self.buf.output().len() {
+        if self.need_refill() {
             self.refill();
         }
         let result = self.buf.output()[self.i];
@@ -103,6 +111,66 @@ impl ChaCha8 {
         let hi_half = u64::from(self.next_u32());
         (hi_half << 32) | lo_half
     }
+
+    pub fn read_bytes(&mut self, dest: &mut [u8]) {
+        let mut total_bytes_read = 0;
+        while total_bytes_read < dest.len() {
+            let dest_remainder = &mut dest[total_bytes_read..];
+            if self.need_refill() {
+                self.refill();
+            }
+            let src_words = &mut self.buf.output_mut()[self.i..];
+            let available_bytes = size_of_val::<[u32]>(src_words);
+            let single_read_bytes = cmp::min(available_bytes, dest_remainder.len());
+
+            // Round up the number of bytes read to whole 32-bit words. The + 3 can't overflow
+            // because non-ZST slices are at most `isize::MAX` bytes large. Because `src.len()` is
+            // always a multiple of four, this can only discards some bytes of RNG output when the
+            // total size of `dest` is not a multiple of four.
+            let single_read_words = (single_read_bytes + 3) / 4;
+            debug_assert_eq!(single_read_bytes.div_ceil(4), single_read_words);
+
+            // On little-endian targets this is a no-op and should easily be optimized out. On
+            // big-endian targets it's necessary to get the same behavior as on little-endian
+            // targets. We limit this to the words that will be read entirely or partially in this
+            // iteration because that's less work. We do it before the read to get correct results
+            // for the last few bytes of a read that's not a multiple of four bytes. Because the
+            // other bytes of the last partially-read word are discarded in that case, we don't have
+            // to undo the byte swap for that word after the read: the bytes that would be affects
+            // will be skipped anyway.
+            let src_words = &mut src_words[..single_read_words];
+            for word in src_words.iter_mut() {
+                *word = word.to_le();
+            }
+            // With the above preparations, the rest of the work is just a bytewise copy.
+            dest_remainder[..single_read_bytes]
+                .copy_from_slice(&words_as_ne_bytes(src_words)[..single_read_bytes]);
+
+            total_bytes_read += single_read_bytes;
+            self.i += single_read_words;
+            debug_assert!(self.i <= self.buf.output().len());
+            debug_assert!(total_bytes_read < dest.len() || (single_read_bytes % 4 == 0));
+        }
+        debug_assert!(total_bytes_read == dest.len());
+    }
+}
+
+fn words_as_ne_bytes<'a>(words: &'a [u32]) -> &'a [u8] {
+    // This is almost certainly guaranteed, but spelling out again doesn't hurt.
+    const _ALIGN_OK: () = assert!(align_of::<u8>() <= align_of::<u32>());
+
+    let len = size_of_val::<[u32]>(words);
+    let data: *const u8 = words.as_ptr().cast();
+    // SAFETY:
+    // * The pointer is valid for reading `len` bytes because `u32` has no padding and `words`
+    //   covers exactly that many bytes.
+    // * The pointer is non-null because it came from a valid `&[T]`.
+    // * Alignment is OK because `u32` has equal or greater alignment as `u8`
+    // * The memory will not be written for the duration of 'a because we have a shared borrow of
+    //   `words` for the same duration.
+    // * The total size in bytes is less than `isize::MAX` because it's the same number of bytes as
+    //   `words`, so we just inherit that property.
+    unsafe { slice::from_raw_parts::<'a, u8>(data, len) }
 }
 
 impl fmt::Debug for ChaCha8 {
