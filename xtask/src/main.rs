@@ -52,7 +52,7 @@ fn bench_in_wasmtime() -> xshell::Result<()> {
     let sh = Shell::new()?;
     cmd!(
         sh,
-        "cargo run --release --target wasm32-wasip1 --bin bench --all-features"
+        "cargo run --release --target wasm32-wasip1 -p benchmarks"
     )
     .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
     .env(WASM_RUNNER_ENV, "wasmtime")
