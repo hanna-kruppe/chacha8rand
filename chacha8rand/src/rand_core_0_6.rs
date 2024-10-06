@@ -25,6 +25,6 @@ impl SeedableRng for ChaCha8Rand {
     type Seed = [u8; 32];
 
     fn from_seed(seed: [u8; 32]) -> Self {
-        Self::new(crate::Seed::from(seed))
+        Self::new(seed)
     }
 }

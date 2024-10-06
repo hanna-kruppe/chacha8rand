@@ -1,6 +1,6 @@
 use core::iter;
 
-use crate::{Backend, ChaCha8Rand, ChaCha8State, Seed};
+use crate::{Backend, ChaCha8Rand, ChaCha8State};
 
 macro_rules! test_backends {
     (
@@ -115,13 +115,13 @@ fn restore_rejects_excessive_count() {
 }
 
 fn sample_output_u32s(backend: Backend) {
-    let mut rng = ChaCha8Rand::with_backend(Seed::from(SAMPLE_SEED), backend);
+    let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
     let u32s = iter::repeat_with(move || rng.next_u32());
     check_byte_output(u32s.flat_map(u32::to_le_bytes));
 }
 
 fn sample_output_u64s(backend: Backend) {
-    let mut rng = ChaCha8Rand::with_backend(Seed::from(SAMPLE_SEED), backend);
+    let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
     let u64s = iter::repeat_with(move || rng.next_u64());
     check_byte_output(u64s.flat_map(u64::to_le_bytes));
 }

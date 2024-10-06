@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chacha8rand::{Backend, ChaCha8Rand, Seed};
+use chacha8rand::{Backend, ChaCha8Rand};
 
 fn main() {
     println!("label,min,p10,p50,p90,max,min_repeats,max_repeats");
@@ -135,7 +135,7 @@ const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
 
 fn bench_next_u32(backend_name: &str, backend: Backend) -> Benchmark {
     let backend = black_box(backend);
-    let mut rng = ChaCha8Rand::with_backend(Seed::from(SEED), backend);
+    let mut rng = ChaCha8Rand::with_backend(SEED, backend);
     Benchmark {
         label: format!("next_u32/{backend_name}"),
         work: Box::new(move |n| {
@@ -151,7 +151,7 @@ fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchm
     Benchmark {
         label,
         work: Box::new(move |n| {
-            let mut rng = ChaCha8Rand::with_backend(Seed::from(SEED), backend);
+            let mut rng = ChaCha8Rand::with_backend(SEED, backend);
             for _ in 0..n {
                 rng.read_bytes(&mut dest);
                 black_box(&mut dest);
