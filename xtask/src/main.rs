@@ -20,10 +20,11 @@ const WASM_RUNNER_ENV: &str = "CARGO_TARGET_WASM32_WASIP1_RUNNER";
 fn crosstest() -> xshell::Result<()> {
     let sh = Shell::new()?;
     let targets = [
-        "aarch64-unknown-linux-gnu",
-        "i586-unknown-linux-gnu",
-        "i686-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu", // for neon
+        "i586-unknown-linux-gnu",    // for x86 without sse2 statically enabled
+        "i686-unknown-linux-gnu",    // for 32-bit compatibility in sse2 and avx2 modules
+        "s390x-unknown-linux-gnu",   // for big endian
+        "x86_64-unknown-linux-gnu",  // for sse2 and avx2
     ];
     for target in targets {
         // Testing the x86_64 target on an x86_64 host means rustflags from $CARGO_HOME/.config.toml
