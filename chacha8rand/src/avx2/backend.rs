@@ -1,7 +1,6 @@
 use crate::{
-    guts::{C0, C1, C2, C3},
-    safe_arch::avx2::{Avx2, __m256i},
-    Backend, Buffer,
+    avx2::safe_arch::{Avx2, __m256i},
+    Backend, Buffer, C0, C1, C2, C3,
 };
 use arrayref::{array_mut_ref, mut_array_refs};
 

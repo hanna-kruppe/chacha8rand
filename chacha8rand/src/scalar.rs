@@ -1,7 +1,4 @@
-use crate::{
-    guts::{C0, C1, C2, C3},
-    Buffer,
-};
+use crate::{Buffer, C0, C1, C2, C3};
 use arrayref::array_mut_ref;
 
 #[inline(never)]

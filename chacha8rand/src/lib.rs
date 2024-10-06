@@ -10,16 +10,64 @@ use core::array;
 extern crate std;
 
 mod backend;
-mod guts;
 #[cfg(feature = "rand_core_0_6")]
 pub mod rand_core_0_6;
-mod safe_arch;
+mod scalar;
 #[cfg(test)]
 mod tests;
+mod widex4;
 
 use arrayref::array_ref;
 
 pub use backend::Backend;
+
+macro_rules! arch_backend {
+    (#[cfg($($cond:meta)*)] mod $name:ident;) => {
+        #[cfg($($cond)*)]
+        mod $name {
+            mod safe_arch;
+            mod backend;
+            pub(crate) use backend::detect;
+        }
+
+        #[cfg(not($($cond)*))]
+        mod $name {
+            pub fn detect() -> Option<crate::Backend> {
+                None
+            }
+        }
+    };
+}
+
+// This backend uses dynamic feature detection, so it's only gated on `target_arch` and not on
+// `target_feature = "avx2"`.
+arch_backend! {
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    mod avx2;
+}
+
+// For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
+// also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high chance
+// that AVX2 is available at runtime.
+arch_backend! {
+    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature = "sse2"))]
+    mod sse2;
+}
+
+// The neon backend is limited to little-endian because the core::arch intrinsics currently don't
+// work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they worked, it's a
+// pretty obscure target and difficult to test for (e.g., `cross` doesn't currently support it) so
+// I'm inclined to leave this out until someone champions it.
+arch_backend! {
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
+    mod neon;
+}
+
+// The constant words in the first row of the initial state
+const C0: u32 = u32::from_le_bytes(*b"expa");
+const C1: u32 = u32::from_le_bytes(*b"nd 3");
+const C2: u32 = u32::from_le_bytes(*b"2-by");
+const C3: u32 = u32::from_le_bytes(*b"te k");
 
 // Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
 // the highest alignment. There are other layouts that also minimize padding, but the one rustc
@@ -137,22 +185,22 @@ impl Backend {
     }
 
     pub fn scalar() -> Backend {
-        Self::new(guts::scalar::fill_buf)
+        Self::new(scalar::fill_buf)
     }
 
     pub fn widex4() -> Backend {
-        Self::new(guts::widex4::fill_buf)
+        Self::new(widex4::fill_buf)
     }
 
     pub fn x86_avx2() -> Option<Self> {
-        guts::avx2::detect()
+        avx2::detect()
     }
 
     pub fn x86_sse2() -> Option<Self> {
-        guts::sse2::detect()
+        sse2::detect()
     }
 
     pub fn aarch64_neon() -> Option<Self> {
-        guts::neon::detect()
+        neon::detect()
     }
 }

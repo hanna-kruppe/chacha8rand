@@ -1,10 +1,13 @@
+use core::arch::aarch64::uint32x4_t;
+
 use arrayref::array_mut_ref;
 
-use crate::guts::{C0, C1, C2, C3};
-use crate::safe_arch::sse2::{
-    __m128i, add_u32, from_elems, shift_left_u32, shift_right_u32, splat, store_u32x4, xor,
+use crate::{
+    neon::safe_arch::{
+        add_u32, from_elems, shift_left_u32, shift_right_u32, splat, store_u32x4, xor,
+    },
+    Backend, Buffer, C0, C1, C2, C3,
 };
-use crate::{Backend, Buffer};
 
 pub fn detect() -> Option<Backend> {
     Some(Backend::new(fill_buf))
@@ -49,7 +52,7 @@ pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
 }
 
 #[inline(always)]
-fn quarter_round(x: &mut [__m128i; 16], a: usize, b: usize, c: usize, d: usize) {
+fn quarter_round(x: &mut [uint32x4_t; 16], a: usize, b: usize, c: usize, d: usize) {
     // a += b; d ^= a; d = rotl(d, 16);
     x[a] = add_u32(x[a], x[b]);
     x[d] = xor(x[d], x[a]);
@@ -72,7 +75,7 @@ fn quarter_round(x: &mut [__m128i; 16], a: usize, b: usize, c: usize, d: usize) 
 }
 
 #[inline(always)]
-fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(x: __m128i) -> __m128i {
+fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(x: uint32x4_t) -> uint32x4_t {
     const {
         assert!(SH_RIGHT == (32 - SH_LEFT));
     }
