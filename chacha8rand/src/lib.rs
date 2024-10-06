@@ -1,6 +1,6 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![no_std]
-use core::array;
+use core::{array, fmt};
 
 mod backend;
 #[cfg(feature = "rand_core_0_6")]
@@ -17,6 +17,7 @@ pub use backend::Backend;
 // the highest alignment. There are other layouts that also minimize padding, but the one rustc
 // picks happen to generate slightly better code for `next_u32` on some targets (e.g., on aarch64,
 // it avoids computing the address of the buffer before checking if it needs to be refilled).
+#[derive(Clone)]
 pub struct ChaCha8 {
     backend: Backend,
     i: usize,
@@ -28,6 +29,7 @@ pub struct ChaCha8 {
 // that cross 32- or 64-byte boundaries are slightly slower on a bunch of CPUs, so higher alignment
 // is occasionally useful. Since we don't do 512-bit SIMD, 32-byte alignment is sufficient.
 #[repr(align(32))]
+#[derive(Clone)]
 pub struct Buffer {
     pub words: [u32; 256],
 }
@@ -100,6 +102,12 @@ impl ChaCha8 {
         let lo_half = u64::from(self.next_u32());
         let hi_half = u64::from(self.next_u32());
         (hi_half << 32) | lo_half
+    }
+}
+
+impl fmt::Debug for ChaCha8 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(core::any::type_name::<Self>())
     }
 }
 
