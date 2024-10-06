@@ -4,7 +4,7 @@ use core::{array, cmp, error::Error, fmt, slice};
 
 mod backend;
 #[cfg(feature = "rand_core_0_6")]
-pub mod rand_core_0_6;
+mod rand_core_0_6;
 mod scalar;
 #[cfg(test)]
 mod tests;
