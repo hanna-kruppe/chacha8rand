@@ -1,6 +1,6 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![no_std]
-use core::{array, cmp, fmt, slice};
+use core::{array, cmp, error::Error, fmt, slice};
 
 mod backend;
 #[cfg(feature = "rand_core_0_6")]
@@ -20,9 +20,25 @@ pub use backend::Backend;
 #[derive(Clone)]
 pub struct ChaCha8Rand {
     backend: Backend,
+    /// Position in `buf.output()` of the next word to produce as output. Should be equal to the
+    /// length of `buf.output()` if all the output was already consumed. Larger values are not
+    /// canonical and *shouldn't* occur, but we never rely on this for safety and most other code
+    /// also tries to handle larger values gracefully.
     i: usize,
     seed: [u32; 8],
     buf: Buffer,
+}
+
+#[derive(Clone, Copy)]
+pub struct ChaCha8State {
+    pub seed: [u32; 8],
+    pub words_consumed: u32,
+}
+
+impl fmt::Debug for ChaCha8State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ChaCha8State {}")
+    }
 }
 
 // None of the backends currently require this alignment for soundness, but SIMD memory accesses
@@ -48,7 +64,13 @@ impl Buffer {
     }
 }
 
-pub struct Seed([u32; 8]);
+pub struct Seed(pub [u32; 8]);
+
+impl From<[u32; 8]> for Seed {
+    fn from(words: [u32; 8]) -> Self {
+        Self(words)
+    }
+}
 
 impl From<[u8; 32]> for Seed {
     fn from(bytes: [u8; 32]) -> Self {
@@ -64,21 +86,92 @@ impl From<&[u8; 32]> for Seed {
     }
 }
 
+impl From<&[u32; 8]> for Seed {
+    fn from(words: &[u32; 8]) -> Self {
+        Self(*words)
+    }
+}
+
+pub struct RestoreStateError {
+    _private: (),
+}
+
+impl fmt::Debug for RestoreStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("RestoreStateError")
+    }
+}
+
+impl fmt::Display for RestoreStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("could not restore ChaCha8State")
+    }
+}
+
+impl Error for RestoreStateError {}
+
 impl ChaCha8Rand {
-    pub fn new(seed: Seed) -> Self {
-        Self::with_backend(seed, Backend::detect_best())
+    pub fn new(seed: impl Into<Seed>) -> Self {
+        fn inner(seed: Seed) -> ChaCha8Rand {
+            ChaCha8Rand::with_backend(seed, Backend::detect_best())
+        }
+        inner(seed.into())
     }
 
-    pub fn with_backend(seed: Seed, backend: Backend) -> Self {
-        let buf = Buffer { words: [0; 256] };
-        let mut this = Self {
-            seed: seed.0,
-            i: 0,
-            buf,
-            backend,
-        };
-        backend.refill(&this.seed, &mut this.buf);
-        this
+    pub fn with_backend(seed: impl Into<Seed>, backend: Backend) -> Self {
+        fn inner(seed: Seed, backend: Backend) -> ChaCha8Rand {
+            let buf = Buffer { words: [0; 256] };
+            let mut this = ChaCha8Rand {
+                seed: [0; 8],
+                i: 0,
+                buf,
+                backend,
+            };
+            this.set_seed(seed);
+            this
+        }
+        inner(seed.into(), backend)
+    }
+
+    pub fn set_seed(&mut self, seed: impl Into<Seed>) {
+        fn inner(rng: &mut ChaCha8Rand, seed: Seed) {
+            // Fill the buffer immediately because we want the next word of output to come directly
+            // from the new seed, not from the next seed generated from this one.
+            rng.backend.refill(&seed.0, &mut rng.buf);
+            rng.seed = seed.0;
+            rng.i = 0;
+        }
+        inner(self, seed.into())
+    }
+
+    pub fn clone_state(&self) -> ChaCha8State {
+        // The `as u32` cast can't truncate because we never set the field to anything larger than
+        // the size of the output buffer. But if that does happen, restoring from the resulting
+        // state could behave incorrectly. That code path is also careful about it but defense in
+        // depth can't hurt, so let's saturate here.
+        let limit = self.buf.output().len();
+        debug_assert!(self.i <= limit);
+        let words_consumed = u32::try_from(self.i).unwrap_or(u32::try_from(limit).unwrap());
+        ChaCha8State {
+            seed: self.seed,
+            words_consumed,
+        }
+    }
+
+    pub fn try_restore_state(&mut self, state: &ChaCha8State) -> Result<(), RestoreStateError> {
+        // We never produce `words_consumed` values larger than the output buffer's size. The u32 ->
+        // usize conversion can only fail on 16-bit targets, which are not exactly the target
+        // audience for this crate, but we can easily handle that while we're here.
+        let words_consumed = usize::try_from(state.words_consumed).unwrap_or(usize::MAX);
+        if words_consumed > self.buf.output().len() {
+            return Err(RestoreStateError { _private: () });
+        }
+
+        // We can just use `set_seed` to fill the buffer and then skip the parts of that chunk that
+        // were marked as already consumed by adjusting our position in the refilled buffer.
+        self.set_seed(state.seed);
+        self.i = words_consumed;
+        Ok(())
     }
 
     #[inline]

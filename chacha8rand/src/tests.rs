@@ -1,6 +1,6 @@
 use core::iter;
 
-use crate::{Backend, ChaCha8Rand, Seed};
+use crate::{Backend, ChaCha8Rand, ChaCha8State, Seed};
 
 macro_rules! test_backends {
     (
@@ -42,6 +42,76 @@ test_backends! {
     neon => Backend::aarch64_neon().expect("this test requires neon");
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
     simd128 => Backend::wasm32_simd128().expect("this test requires simd128");
+}
+
+#[test]
+fn save_and_restore_at_start() {
+    check_save_restore_at(0);
+    check_save_restore_at(1);
+}
+
+#[test]
+fn save_and_restore_in_first_batch() {
+    check_save_restore_at(100);
+}
+
+#[test]
+fn save_and_restore_around_refill() {
+    // 248 words per refill. Let's try several values around that to mitigate off-by-one errors.
+    check_save_restore_at(247);
+    check_save_restore_at(248);
+    check_save_restore_at(249);
+}
+
+#[test]
+fn save_and_restore_in_later_batch() {
+    check_save_restore_at(333);
+}
+
+fn check_save_restore_at(save_restore_pos: u32) {
+    let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
+    let mut pos = 0;
+    let mut did_save_restore = 0;
+    let output = iter::repeat_with(|| {
+        if pos == save_restore_pos {
+            let state = rng.clone_state();
+            // Let's consume a bit of output to avoid rubber-stamping no-op implementations.
+            rng.next_u64();
+            rng.next_u32();
+            rng.try_restore_state(&state)
+                .expect("save-restore roundtrip should always succeed");
+            did_save_restore += 1;
+        }
+        pos += 1;
+        rng.next_u32().to_le_bytes()
+    })
+    .flatten();
+    check_byte_output(output);
+    assert_eq!(did_save_restore, 1);
+}
+
+#[test]
+fn restore_rejects_slighty_too_large_count() {
+    let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
+    let bogus_state = ChaCha8State {
+        seed: [0xdead; 8],
+        words_consumed: 249,
+    };
+    assert!(rng.try_restore_state(&bogus_state).is_err());
+    // Also, the error should be detected before the RNG state is altered:
+    check_byte_output(iter::repeat_with(|| rng.next_u32().to_le_bytes()).flatten());
+}
+
+#[test]
+fn restore_rejects_excessive_count() {
+    let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
+    let bogus_state = ChaCha8State {
+        seed: [0xdead; 8],
+        words_consumed: u32::MAX,
+    };
+    assert!(rng.try_restore_state(&bogus_state).is_err());
+    // Also, the error should be detected before the RNG state is altered:
+    check_byte_output(iter::repeat_with(|| rng.next_u32().to_le_bytes()).flatten());
 }
 
 fn sample_output_u32s(backend: Backend) {
