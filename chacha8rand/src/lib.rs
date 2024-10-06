@@ -8,7 +8,6 @@ pub mod rand_core_0_6;
 mod scalar;
 #[cfg(test)]
 mod tests;
-mod widex4;
 
 use arrayref::array_ref;
 
@@ -172,20 +171,15 @@ impl Backend {
             return neon;
         }
 
-        if cfg!(target_arch = "wasm32") && cfg!(target_feature = "simd128") {
-            // No dynamic feature detection on wasm.
-            return Backend::widex4();
+        if let Some(simd128) = Backend::wasm32_simd128() {
+            return simd128;
         }
-        // Fallback if we don't know for sure that we have SIMD:
+
         Backend::scalar()
     }
 
     pub fn scalar() -> Backend {
         Self::new(scalar::fill_buf)
-    }
-
-    pub fn widex4() -> Backend {
-        Self::new(widex4::fill_buf)
     }
 
     pub fn x86_avx2() -> Option<Self> {

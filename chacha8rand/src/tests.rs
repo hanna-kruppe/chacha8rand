@@ -30,7 +30,6 @@ macro_rules! test_backends {
 
 test_backends! {
     scalar => Backend::scalar();
-    widex4 => Backend::widex4();
     #[cfg(any(
         target_arch = "x86_64",
         // because we have no runtime detection for sse2
