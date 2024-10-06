@@ -38,17 +38,24 @@ fn crosstest() -> xshell::Result<()> {
         .env("RUSTFLAGS", "")
         .run()?;
     }
-    cmd!(sh, "cargo test --target wasm32-wasip1")
-        .env(WASM_RUNNER_ENV, "wasmtime")
-        .run()?;
+    // Test wasm with and without simd128
+    for flags in ["", "-Ctarget-feature=+simd128"] {
+        cmd!(sh, "cargo test --target wasm32-wasip1")
+            .env(WASM_RUNNER_ENV, "wasmtime")
+            .env("RUSTFLAGS", flags)
+            .run()?;
+    }
     Ok(())
 }
 
 fn bench_in_wasmtime() -> xshell::Result<()> {
     let sh = Shell::new()?;
-    cmd!(sh, "cargo run --release --target wasm32-wasip1 --bin bench")
-        .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
-        .env(WASM_RUNNER_ENV, "wasmtime")
-        .run()?;
+    cmd!(
+        sh,
+        "cargo run --release --target wasm32-wasip1 --bin bench --all-features"
+    )
+    .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
+    .env(WASM_RUNNER_ENV, "wasmtime")
+    .run()?;
     Ok(())
 }

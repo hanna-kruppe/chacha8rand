@@ -42,6 +42,9 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     if let Some(neon) = Backend::aarch64_neon() {
         benchmarks.push(bench_next_u32("neon", neon));
     }
+    if let Some(simd128) = Backend::wasm32_simd128() {
+        benchmarks.push(bench_next_u32("simd128", simd128));
+    }
 
     benchmarks.push(bench_bulk("scalar", Backend::scalar()));
     benchmarks.push(bench_bulk("widex4", Backend::widex4()));
@@ -53,6 +56,9 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     }
     if let Some(neon) = Backend::aarch64_neon() {
         benchmarks.push(bench_bulk("neon", neon));
+    }
+    if let Some(simd128) = Backend::wasm32_simd128() {
+        benchmarks.push(bench_bulk("simd128", simd128));
     }
 
     #[cfg(feature = "rand_core_0_6")]

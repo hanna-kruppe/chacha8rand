@@ -41,6 +41,8 @@ test_backends! {
     avx2 => Backend::x86_avx2().expect("this test requires sse2");
     #[cfg(target_arch = "aarch64")]
     neon => Backend::aarch64_neon().expect("this test requires neon");
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    simd128 => Backend::wasm32_simd128().expect("this test requires simd128");
 }
 
 fn sample_output_u32s(backend: Backend) {

@@ -144,6 +144,9 @@ arch_backends! {
     // currently support it) so I'm inclined to leave this out until someone champions it.
     #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
     mod neon;
+
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    mod simd128;
 }
 
 // The constant words in the first row of the initial state
@@ -195,5 +198,9 @@ impl Backend {
 
     pub fn aarch64_neon() -> Option<Self> {
         neon::detect()
+    }
+
+    pub fn wasm32_simd128() -> Option<Self> {
+        simd128::detect()
     }
 }
