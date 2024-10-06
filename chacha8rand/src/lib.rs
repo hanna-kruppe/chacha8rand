@@ -112,36 +112,37 @@ impl Error for RestoreStateError {}
 
 impl ChaCha8Rand {
     pub fn new(seed: impl Into<Seed>) -> Self {
-        fn inner(seed: Seed) -> ChaCha8Rand {
-            ChaCha8Rand::with_backend(seed, Backend::detect_best())
+        fn inner(seed: &Seed) -> ChaCha8Rand {
+            ChaCha8Rand::with_backend_mono(seed, Backend::detect_best())
         }
-        inner(seed.into())
+        inner(&seed.into())
     }
 
     pub fn with_backend(seed: impl Into<Seed>, backend: Backend) -> Self {
-        fn inner(seed: Seed, backend: Backend) -> ChaCha8Rand {
-            let buf = Buffer { words: [0; 256] };
-            let mut this = ChaCha8Rand {
-                seed: [0; 8],
-                i: 0,
-                buf,
-                backend,
-            };
-            this.set_seed(seed);
-            this
-        }
-        inner(seed.into(), backend)
+        Self::with_backend_mono(&seed.into(), backend)
+    }
+
+    fn with_backend_mono(seed: &Seed, backend: Backend) -> ChaCha8Rand {
+        let mut this = ChaCha8Rand {
+            seed: [0; 8],
+            i: 0,
+            buf: Buffer { words: [0; 256] },
+            backend,
+        };
+        this.set_seed_mono(seed);
+        this
     }
 
     pub fn set_seed(&mut self, seed: impl Into<Seed>) {
-        fn inner(rng: &mut ChaCha8Rand, seed: Seed) {
-            // Fill the buffer immediately because we want the next word of output to come directly
-            // from the new seed, not from the next seed generated from this one.
-            rng.backend.refill(&seed.0, &mut rng.buf);
-            rng.seed = seed.0;
-            rng.i = 0;
-        }
-        inner(self, seed.into())
+        self.set_seed_mono(&seed.into())
+    }
+
+    fn set_seed_mono(self: &mut ChaCha8Rand, seed: &Seed) {
+        // Fill the buffer immediately because we want the next word of output to come directly
+        // from the new seed, not from the next seed generated from this one.
+        self.backend.refill(&seed.0, &mut self.buf);
+        self.seed = seed.0;
+        self.i = 0;
     }
 
     pub fn clone_state(&self) -> ChaCha8State {
