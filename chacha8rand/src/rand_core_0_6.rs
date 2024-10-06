@@ -1,14 +1,14 @@
 use rand_core::{RngCore, SeedableRng};
 
-use crate::ChaCha8;
+use crate::ChaCha8Rand;
 
-impl RngCore for ChaCha8 {
+impl RngCore for ChaCha8Rand {
     fn next_u32(&mut self) -> u32 {
-        ChaCha8::next_u32(self)
+        ChaCha8Rand::next_u32(self)
     }
 
     fn next_u64(&mut self) -> u64 {
-        ChaCha8::next_u64(self)
+        ChaCha8Rand::next_u64(self)
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
@@ -21,7 +21,7 @@ impl RngCore for ChaCha8 {
     }
 }
 
-impl SeedableRng for ChaCha8 {
+impl SeedableRng for ChaCha8Rand {
     type Seed = [u8; 32];
 
     fn from_seed(seed: [u8; 32]) -> Self {

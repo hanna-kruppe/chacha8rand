@@ -18,7 +18,7 @@ pub use backend::Backend;
 // picks happen to generate slightly better code for `next_u32` on some targets (e.g., on aarch64,
 // it avoids computing the address of the buffer before checking if it needs to be refilled).
 #[derive(Clone)]
-pub struct ChaCha8 {
+pub struct ChaCha8Rand {
     backend: Backend,
     i: usize,
     seed: [u32; 8],
@@ -64,7 +64,7 @@ impl From<&[u8; 32]> for Seed {
     }
 }
 
-impl ChaCha8 {
+impl ChaCha8Rand {
     pub fn new(seed: Seed) -> Self {
         Self::with_backend(seed, Backend::detect_best())
     }
@@ -174,7 +174,7 @@ fn words_as_ne_bytes<'a>(words: &'a [u32]) -> &'a [u8] {
     unsafe { slice::from_raw_parts::<'a, u8>(data, len) }
 }
 
-impl fmt::Debug for ChaCha8 {
+impl fmt::Debug for ChaCha8Rand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ChaCha8 {}")
     }

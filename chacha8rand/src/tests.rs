@@ -1,6 +1,6 @@
 use core::iter;
 
-use crate::{Backend, ChaCha8, Seed};
+use crate::{Backend, ChaCha8Rand, Seed};
 
 macro_rules! test_backends {
     (
@@ -45,13 +45,13 @@ test_backends! {
 }
 
 fn sample_output_u32s(backend: Backend) {
-    let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
+    let mut rng = ChaCha8Rand::with_backend(Seed::from(SAMPLE_SEED), backend);
     let u32s = iter::repeat_with(move || rng.next_u32());
     check_byte_output(u32s.flat_map(u32::to_le_bytes));
 }
 
 fn sample_output_u64s(backend: Backend) {
-    let mut rng = ChaCha8::with_backend(Seed::from(SAMPLE_SEED), backend);
+    let mut rng = ChaCha8Rand::with_backend(Seed::from(SAMPLE_SEED), backend);
     let u64s = iter::repeat_with(move || rng.next_u64());
     check_byte_output(u64s.flat_map(u64::to_le_bytes));
 }
@@ -62,27 +62,27 @@ mod rand06 {
 
     use rand_core::{RngCore, SeedableRng};
 
-    use crate::ChaCha8;
+    use crate::ChaCha8Rand;
 
     use super::{check_byte_output, SAMPLE_OUTPUT_U64LE, SAMPLE_SEED};
 
     #[test]
     fn next_u32() {
-        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
         let u32s = iter::repeat_with(|| RngCore::next_u32(&mut rng));
         check_byte_output(u32s.flat_map(u32::to_le_bytes));
     }
 
     #[test]
     fn next_u64() {
-        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
         let u64s = iter::repeat_with(|| RngCore::next_u64(&mut rng));
         check_byte_output(u64s.flat_map(u64::to_le_bytes));
     }
 
     #[test]
     fn fill_bytes() {
-        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
         let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
         rng.fill_bytes(&mut bytes);
         check_byte_output(bytes.iter().copied());
@@ -91,7 +91,7 @@ mod rand06 {
     #[test]
     fn fill_bytes_u64_granularity() {
         // fill_bytes calls in chunks of 8 bytes should behave the same as next_u64
-        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
         let chunks = iter::repeat_with(|| {
             let mut chunk = [0; 8];
             rng.fill_bytes(&mut chunk);
@@ -105,7 +105,7 @@ mod rand06 {
         // This test relies on fill_bytes not consuming more u32s than necessary, which is a bit
         // iffy but in practice should be fine. If the test breaks, I guess we'll have to stop using
         // the rand_core helper to implement fill_bytes.
-        let mut rng = ChaCha8::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
         let mut i: u32 = 0;
         let interleaved = iter::repeat_with(|| {
             i += 1;
