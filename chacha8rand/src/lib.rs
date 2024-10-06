@@ -2,13 +2,6 @@
 #![no_std]
 use core::array;
 
-// On x86 we use runtime feature detection, which is currently only supported in std or with
-// third-party libraries. We could use one of those libraries to be no_std even on x86, but I don't
-// have a use case for that so let's just pull in std while we wait for runtime feature detection in
-// core to be implemented and stabilized.
-#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-extern crate std;
-
 mod backend;
 #[cfg(feature = "rand_core_0_6")]
 pub mod rand_core_0_6;

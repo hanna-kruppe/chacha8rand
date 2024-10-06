@@ -4,6 +4,9 @@ use crate::{
 };
 use arrayref::{array_mut_ref, mut_array_refs};
 
+// See sibling module for rationale
+extern crate std;
+
 pub(crate) fn detect() -> Option<Backend> {
     if std::is_x86_feature_detected!("avx2") {
         // SAFETY: `fill_buf` is only unsafe because it enables the AVX2 `target_feature`, and we've

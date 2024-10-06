@@ -1,7 +1,13 @@
+// Runtime feature detection is currently only supported in std or with third-party libraries. We
+// could use one of those libraries to be no_std even on x86, but I don't have a use case for that
+// so let's just pull in std while we wait for runtime feature detection in core to be implemented
+// and stabilized.
+extern crate std;
+
 #[cfg(target_arch = "x86")]
-use std::arch::x86 as arch;
+use core::arch::x86 as arch;
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64 as arch;
+use core::arch::x86_64 as arch;
 
 pub use arch::__m256i;
 use arch::{
@@ -20,7 +26,7 @@ mod detect {
 
     impl Avx2 {
         pub(crate) fn new() -> Option<Self> {
-            if std::is_x86_feature_detected!("avx2") {
+            if super::std::is_x86_feature_detected!("avx2") {
                 Some(Self {
                     _feature_detected: (),
                 })
