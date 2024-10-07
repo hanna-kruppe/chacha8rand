@@ -5,12 +5,12 @@ use crate::{Backend, ChaCha8Rand, ChaCha8State};
 macro_rules! test_backends {
     (
         $(
-            $(#[$($cfg:meta)*])?
+            $(#[cfg($gate:meta)])?
             $name:ident => $ctor:expr;
         )+
     ) => {
         $(
-            $(#[$($cfg)*])?
+            $(#[cfg($gate)])?
             mod $name {
                 use crate::Backend;
 

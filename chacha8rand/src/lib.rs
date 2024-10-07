@@ -275,25 +275,23 @@ impl fmt::Debug for ChaCha8Rand {
 }
 
 macro_rules! arch_backends {
-    (#[cfg($($cond:meta)*)] mod $name:ident; $($rest:tt)*) => {
-        #[cfg($($cond)*)]
-        mod $name {
-            mod safe_arch;
-            mod backend;
-            pub(crate) use backend::detect;
-        }
-
-        #[cfg(not($($cond)*))]
-        mod $name {
-            pub fn detect() -> Option<crate::Backend> {
-                None
+    ($(#[cfg($cond:meta)] mod $name:ident;)+) => {
+        $(
+            #[cfg($cond)]
+            mod $name {
+                mod safe_arch;
+                mod backend;
+                pub(crate) use backend::detect;
             }
-        }
 
-        arch_backends! { $($rest)* }
+            #[cfg(not($cond))]
+            mod $name {
+                pub fn detect() -> Option<crate::Backend> {
+                    None
+                }
+            }
+        )+
     };
-
-    () => {};
 }
 
 arch_backends! {
