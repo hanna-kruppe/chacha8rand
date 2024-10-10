@@ -76,12 +76,12 @@ impl Avx2 {
     }
 
     #[inline(always)]
-    pub(crate) fn storeu2(self, x: __m256i, dest_hi: &mut [u32; 4], dest_lo: &mut [u32; 4]) {
+    pub(crate) fn storeu2(self, x: __m256i, dest_hi: &mut [u8; 16], dest_lo: &mut [u8; 16]) {
         let hiaddr: *mut __m128i = dest_hi.as_mut_ptr().cast();
         let loaddr: *mut __m128i = dest_lo.as_mut_ptr().cast();
         // SAFETY: this intrinsic requires AVX2 and stores 128 bits to each of the two addresses.
         // (There are no alignment requirements.) `self` proves we have AVX2. Writing to both
-        // destinations is OK because both pointers are derived from distinct `&mut [u32; 4]`, i.e.,
+        // destinations is OK because both pointers are derived from distinct `&mut [u8; 16]`, i.e.,
         // we're allowed to write 128 bits to both of those locations.
         unsafe {
             _mm256_storeu2_m128i(hiaddr, loaddr, x);

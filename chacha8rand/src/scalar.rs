@@ -3,20 +3,20 @@ use arrayref::array_mut_ref;
 
 #[inline(never)]
 pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
-    let buf = &mut buf.words;
-    quad_block(key, 0, array_mut_ref![buf, 0, 64]);
-    quad_block(key, 1, array_mut_ref![buf, 64, 64]);
-    quad_block(key, 2, array_mut_ref![buf, 2 * 64, 64]);
-    quad_block(key, 3, array_mut_ref![buf, 3 * 64, 64]);
+    let buf = &mut buf.bytes;
+    quad_block(key, 0, array_mut_ref![buf, 0, 256]);
+    quad_block(key, 1, array_mut_ref![buf, 256, 256]);
+    quad_block(key, 2, array_mut_ref![buf, 2 * 256, 256]);
+    quad_block(key, 3, array_mut_ref![buf, 3 * 256, 256]);
 }
 
-fn quad_block(key: &[u32; 8], i: usize, buf: &mut [u32; 64]) {
+fn quad_block(key: &[u32; 8], i: usize, buf: &mut [u8; 256]) {
     assert!(i < 4);
     let ctr = (i * 4) as u32;
-    block_strided(key, ctr, array_mut_ref![buf, 0, 61]);
-    block_strided(key, ctr + 1, array_mut_ref![buf, 1, 61]);
-    block_strided(key, ctr + 2, array_mut_ref![buf, 2, 61]);
-    block_strided(key, ctr + 3, array_mut_ref![buf, 3, 61]);
+    block_strided(key, ctr, array_mut_ref![buf, 0, 256 - 12]);
+    block_strided(key, ctr + 1, array_mut_ref![buf, 4, 256 - 12]);
+    block_strided(key, ctr + 2, array_mut_ref![buf, 8, 256 - 12]);
+    block_strided(key, ctr + 3, array_mut_ref![buf, 12, 256 - 12]);
 }
 
 // This is a macro instead of a function because that makes the invocations looks more like the
@@ -31,7 +31,7 @@ macro_rules! quarter_round {
     };
 }
 
-fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u32; 61]) {
+fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u8; 244]) {
     #[rustfmt::skip]
     let mut x = [
         C0,     C1,     C2,     C3,
@@ -53,13 +53,11 @@ fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u32; 61]) {
         quarter_round!(x[3], x[4], x[9], x[14]);
     }
 
-    for i in 0..4 {
-        out[i * 4] = x[i];
-    }
     for i in 4..12 {
-        out[i * 4] = x[i].wrapping_add(key[i - 4]);
+        x[i] = x[i].wrapping_add(key[i - 4]);
     }
-    for i in 12..16 {
-        out[i * 4] = x[i];
+
+    for (i, xi) in x.iter().enumerate() {
+        *array_mut_ref![out, i * 16, 4] = xi.to_le_bytes();
     }
 }

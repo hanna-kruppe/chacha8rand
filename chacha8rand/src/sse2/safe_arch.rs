@@ -47,9 +47,9 @@ pub fn shift_right_u32<const IMM8: i32>(x: __m128i) -> __m128i {
     unsafe { _mm_srli_epi32::<IMM8>(x) }
 }
 
-pub fn store_u32x4(x: __m128i, dest: &mut [u32; 4]) {
+pub fn storeu(x: __m128i, dest: &mut [u8; 16]) {
     // SAFETY: (1) Requires the sse2 target feature, which was detected by cfg. (2) Stores 128 bits
-    // through the pointer, which is OK because it's a mutable reference to `[u32; 4]`. There is no
+    // through the pointer, which is OK because it's a mutable reference to `[u8; 16]`. There is no
     // alignment requirement.
     let mem_addr: *mut __m128i = dest.as_mut_ptr().cast();
     unsafe {

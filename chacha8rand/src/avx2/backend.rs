@@ -28,7 +28,7 @@ pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     // use `expect` here.
     let avx2 = Avx2::new().expect("AVX2 must be available if this backend is invoked");
 
-    let buf = &mut buf.words;
+    let buf = &mut buf.bytes;
     let mut ctr = avx2.elems([0, 1, 2, 3, 4, 5, 6, 7]);
     let splat = |x| avx2.splat(x);
 
@@ -58,11 +58,11 @@ pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = avx2.add_u32(x[i], splat(key[i - 4]));
         }
 
-        let out: &mut [u32; 128] = array_mut_ref![buf, eight_blocks * 128, 128];
-        let (out_lo, out_hi) = mut_array_refs![out, 64, 64];
+        let out: &mut [u8; 512] = array_mut_ref![buf, eight_blocks * 512, 512];
+        let (out_lo, out_hi) = mut_array_refs![out, 256, 256];
         for (i, &xi) in x.iter().enumerate() {
-            let dest_lo: &mut [u32; 4] = array_mut_ref![out_lo, i * 4, 4];
-            let dest_hi: &mut [u32; 4] = array_mut_ref![out_hi, i * 4, 4];
+            let dest_lo: &mut [u8; 16] = array_mut_ref![out_lo, i * 16, 16];
+            let dest_hi: &mut [u8; 16] = array_mut_ref![out_hi, i * 16, 16];
             avx2.storeu2(xi, dest_hi, dest_lo);
         }
 

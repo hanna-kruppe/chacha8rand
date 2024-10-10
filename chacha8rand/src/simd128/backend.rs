@@ -4,14 +4,14 @@ use core::arch::wasm32::{
 
 use arrayref::array_mut_ref;
 
-use crate::{simd128::safe_arch::store_u32x4, Backend, Buffer, C0, C1, C2, C3};
+use crate::{simd128::safe_arch::store_as_u8x16, Backend, Buffer, C0, C1, C2, C3};
 
 pub fn detect() -> Option<Backend> {
     Some(Backend::new(fill_buf))
 }
 
 pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
-    let buf = &mut buf.words;
+    let buf = &mut buf.bytes;
     let mut ctr = u32x4(0, 1, 2, 3);
     for group in 0..4 {
         #[rustfmt::skip]
@@ -39,9 +39,9 @@ pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = u32x4_add(x[i], splat(key[i - 4]));
         }
 
-        let group_buf = array_mut_ref![buf, group * 64, 64];
+        let group_buf = array_mut_ref![buf, group * 256, 256];
         for (i, &xi) in x.iter().enumerate() {
-            store_u32x4(xi, array_mut_ref![group_buf, 4 * i, 4]);
+            store_as_u8x16(xi, array_mut_ref![group_buf, 16 * i, 16]);
         }
 
         ctr = u32x4_add(ctr, splat(4));

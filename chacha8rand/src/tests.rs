@@ -1,6 +1,8 @@
+extern crate std;
 use core::iter;
+use std::prelude::rust_2021::*;
 
-use crate::{Backend, ChaCha8Rand, ChaCha8State};
+use crate::{Backend, ChaCha8Rand, ChaCha8State, BUF_OUTPUT_LEN};
 
 macro_rules! test_backends {
     (
@@ -57,7 +59,7 @@ fn save_and_restore_in_first_batch() {
 
 #[test]
 fn save_and_restore_around_refill() {
-    // 248 words per refill. Let's try several values around that to mitigate off-by-one errors.
+    // 992 bytes = 248 u32s per refill. Let's also try 247 and 249 to mitigate off-by-one errors.
     check_save_restore_at(247);
     check_save_restore_at(248);
     check_save_restore_at(249);
@@ -68,12 +70,12 @@ fn save_and_restore_in_later_batch() {
     check_save_restore_at(333);
 }
 
-fn check_save_restore_at(save_restore_pos: u32) {
+fn check_save_restore_at(u32s_before_save_restore: u32) {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let mut pos = 0;
     let mut did_save_restore = 0;
     let output = iter::repeat_with(|| {
-        if pos == save_restore_pos {
+        if pos == u32s_before_save_restore {
             let state = rng.clone_state();
             // Let's consume a bit of output to avoid rubber-stamping no-op implementations.
             rng.next_u64();
@@ -95,7 +97,7 @@ fn restore_rejects_slighty_too_large_count() {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let bogus_state = ChaCha8State {
         seed: [0xdead; 8],
-        words_consumed: 249,
+        bytes_consumed: 993,
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:
@@ -107,7 +109,7 @@ fn restore_rejects_excessive_count() {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let bogus_state = ChaCha8State {
         seed: [0xdead; 8],
-        words_consumed: u32::MAX,
+        bytes_consumed: u32::MAX,
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:
@@ -124,6 +126,86 @@ fn sample_output_u64s(backend: Backend) {
     let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
     let u64s = iter::repeat_with(move || rng.next_u64());
     check_byte_output(u64s.flat_map(u64::to_le_bytes));
+}
+
+#[test]
+fn read_single_byte_at_a_time() {
+    read_n_bytes_at_a_time::<1>();
+}
+
+#[test]
+fn read_seven_bytes_at_a_time() {
+    read_n_bytes_at_a_time::<7>();
+}
+
+#[test]
+fn read_bytes_like_u32s() {
+    read_n_bytes_at_a_time::<4>();
+}
+
+#[test]
+fn read_bytes_like_u64s() {
+    read_n_bytes_at_a_time::<8>();
+}
+
+#[test]
+fn read_99_bytes_at_a_time() {
+    read_n_bytes_at_a_time::<99>();
+}
+
+fn read_n_bytes_at_a_time<const N: usize>() {
+    let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
+    let chunks = iter::repeat_with(|| {
+        let mut chunk = [0; N];
+        rng.read_bytes(&mut chunk);
+        chunk
+    });
+    check_byte_output(chunks.flatten());
+}
+
+#[test]
+fn read_u32s_with_empty_reads_in_between() {
+    read_u32s_and_bytes_interleaved(0);
+}
+
+#[test]
+fn read_u32s_and_single_bytes_interleaved() {
+    read_u32s_and_bytes_interleaved(1);
+}
+
+#[test]
+fn read_u32s_and_four_bytes_interleaved() {
+    read_u32s_and_bytes_interleaved(4);
+}
+
+#[test]
+fn read_u32s_and_seven_bytes_interleaved() {
+    read_u32s_and_bytes_interleaved(7);
+}
+
+#[test]
+fn read_u32s_and_many_bytes_interleaved() {
+    read_u32s_and_bytes_interleaved(37);
+}
+
+fn read_u32s_and_bytes_interleaved(read_size: usize) {
+    let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
+    let mut output: Vec<u8> = Vec::new();
+    while output.len() < size_of_val::<[u64]>(SAMPLE_OUTPUT_U64LE) {
+        // Read up to three bytes extra if necessary to make sure they aren't skipped when we read
+        // the next u32.
+        if (output.len() % BUF_OUTPUT_LEN) + 4 > BUF_OUTPUT_LEN {
+            let trailing_bytes = BUF_OUTPUT_LEN - (output.len() % BUF_OUTPUT_LEN);
+            let mut buf = [0; 4];
+            rng.read_bytes(&mut buf[..trailing_bytes]);
+            output.extend_from_slice(&buf[..trailing_bytes]);
+        }
+        output.extend_from_slice(&rng.next_u32().to_le_bytes());
+        let read_start = output.len();
+        output.resize(read_start + read_size, 0);
+        rng.read_bytes(&mut output[read_start..]);
+    }
+    check_byte_output(output.iter().copied());
 }
 
 #[cfg(feature = "rand_core_0_6")]
@@ -156,39 +238,6 @@ mod rand06 {
         let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
         rng.fill_bytes(&mut bytes);
         check_byte_output(bytes.iter().copied());
-    }
-
-    #[test]
-    fn fill_bytes_u64_granularity() {
-        // fill_bytes calls in chunks of 8 bytes should behave the same as next_u64
-        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
-        let chunks = iter::repeat_with(|| {
-            let mut chunk = [0; 8];
-            rng.fill_bytes(&mut chunk);
-            chunk
-        });
-        check_byte_output(chunks.flatten());
-    }
-
-    #[test]
-    fn interleave_words_and_bytes() {
-        // This test relies on fill_bytes not consuming more u32s than necessary, which is a bit
-        // iffy but in practice should be fine. If the test breaks, I guess we'll have to stop using
-        // the rand_core helper to implement fill_bytes.
-        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
-        let mut i: u32 = 0;
-        let interleaved = iter::repeat_with(|| {
-            i += 1;
-            if i % 2 == 0 {
-                rng.next_u32().to_le_bytes()
-            } else {
-                let mut bytes = [0; 4];
-                rng.fill_bytes(&mut bytes);
-                bytes
-            }
-        })
-        .flatten();
-        check_byte_output(interleaved);
     }
 }
 

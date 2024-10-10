@@ -2,7 +2,7 @@ use arrayref::array_mut_ref;
 
 use crate::{
     sse2::safe_arch::{
-        __m128i, add_u32, from_elems, shift_left_u32, shift_right_u32, splat, store_u32x4, xor,
+        __m128i, add_u32, from_elems, shift_left_u32, shift_right_u32, splat, storeu, xor,
     },
     Backend, Buffer, C0, C1, C2, C3,
 };
@@ -12,7 +12,7 @@ pub fn detect() -> Option<Backend> {
 }
 
 pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
-    let buf = &mut buf.words;
+    let buf = &mut buf.bytes;
     let mut ctr = from_elems([0, 1, 2, 3]);
     for group in 0..4 {
         #[rustfmt::skip]
@@ -40,9 +40,9 @@ pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = add_u32(x[i], splat(key[i - 4]));
         }
 
-        let group_buf = array_mut_ref![buf, group * 64, 64];
+        let group_buf = array_mut_ref![buf, group * 256, 256];
         for (i, &xi) in x.iter().enumerate() {
-            store_u32x4(xi, array_mut_ref![group_buf, 4 * i, 4]);
+            storeu(xi, array_mut_ref![group_buf, i * 16, 16]);
         }
 
         ctr = add_u32(ctr, splat(4));

@@ -1,6 +1,8 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![no_std]
-use core::{array, cmp, error::Error, fmt, slice};
+use core::{array, cmp, error::Error, fmt};
+
+use arrayref::array_ref;
 
 mod backend;
 #[cfg(feature = "rand_core_0_6")]
@@ -9,9 +11,10 @@ mod scalar;
 #[cfg(test)]
 mod tests;
 
-use arrayref::{array_mut_ref, array_ref};
-
 pub use backend::Backend;
+
+const BUF_TOTAL_LEN: usize = 1024;
+const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 
 // Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
 // the highest alignment. There are other layouts that also minimize padding, but the one rustc
@@ -20,19 +23,19 @@ pub use backend::Backend;
 #[derive(Clone)]
 pub struct ChaCha8Rand {
     backend: Backend,
-    /// Position in `buf.output()` of the next word to produce as output. Should be equal to the
-    /// length of `buf.output()` if all the output was already consumed. Larger values are not
-    /// canonical and *shouldn't* occur, but we never rely on this for safety and most other code
-    /// also tries to handle larger values gracefully.
-    i: usize,
     seed: [u32; 8],
+    /// Position in `buf.output()` of the next byte to produce as output. Should be equal to
+    /// [`BUF_OUTPUT_LEN`] if all the output was already consumed. Larger values are not canonical
+    /// and *shouldn't* occur, but we never rely on this for safety and most other code also tries
+    /// to handle larger values gracefully.
+    bytes_consumed: usize,
     buf: Buffer,
 }
 
 #[derive(Clone, Copy)]
 pub struct ChaCha8State {
     pub seed: [u32; 8],
-    pub words_consumed: u32,
+    pub bytes_consumed: u32,
 }
 
 impl fmt::Debug for ChaCha8State {
@@ -47,20 +50,16 @@ impl fmt::Debug for ChaCha8State {
 #[repr(align(32))]
 #[derive(Clone)]
 struct Buffer {
-    words: [u32; 256],
+    bytes: [u8; BUF_TOTAL_LEN],
 }
 
 impl Buffer {
-    fn output(&self) -> &[u32; 248] {
-        array_ref![&self.words, 0, 248]
+    fn output(&self) -> &[u8; BUF_OUTPUT_LEN] {
+        array_ref![&self.bytes, 0, BUF_OUTPUT_LEN]
     }
 
-    fn output_mut(&mut self) -> &mut [u32; 248] {
-        array_mut_ref![&mut self.words, 0, 248]
-    }
-
-    fn new_key(&self) -> &[u32; 8] {
-        array_ref![&self.words, 248, 8]
+    fn new_key(&self) -> &[u8; 32] {
+        array_ref![&self.bytes, BUF_OUTPUT_LEN, 32]
     }
 }
 
@@ -125,8 +124,8 @@ impl ChaCha8Rand {
     fn with_backend_mono(seed: &Seed, backend: Backend) -> ChaCha8Rand {
         let mut this = ChaCha8Rand {
             seed: [0; 8],
-            i: 0,
-            buf: Buffer { words: [0; 256] },
+            bytes_consumed: 0,
+            buf: Buffer { bytes: [0; 1024] },
             backend,
         };
         this.set_seed_mono(seed);
@@ -138,134 +137,94 @@ impl ChaCha8Rand {
     }
 
     fn set_seed_mono(self: &mut ChaCha8Rand, seed: &Seed) {
-        // Fill the buffer immediately because we want the next word of output to come directly
-        // from the new seed, not from the next seed generated from this one.
+        // Fill the buffer immediately because we want the next bytes of output to come directly
+        // from the new seed, not from the old seed or from the seed *after* `seed`.
         self.backend.refill(&seed.0, &mut self.buf);
         self.seed = seed.0;
-        self.i = 0;
+        self.bytes_consumed = 0;
     }
 
     pub fn clone_state(&self) -> ChaCha8State {
-        // The `as u32` cast can't truncate because we never set the field to anything larger than
-        // the size of the output buffer. But if that does happen, restoring from the resulting
-        // state could behave incorrectly. That code path is also careful about it but defense in
-        // depth can't hurt, so let's saturate here.
-        let limit = self.buf.output().len();
-        debug_assert!(self.i <= limit);
-        let words_consumed = u32::try_from(self.i).unwrap_or(u32::try_from(limit).unwrap());
+        // The cast to u32 can't truncate because we never set the field to anything larger than the
+        // size of the output buffer. But if that does happen, restoring from the resulting state
+        // could behave incorrectly. That code path is also careful about it but defense in depth
+        // can't hurt, so let's saturate here.
+        debug_assert!(self.bytes_consumed <= BUF_OUTPUT_LEN);
+        let bytes_consumed = cmp::min(self.bytes_consumed, BUF_OUTPUT_LEN) as u32;
         ChaCha8State {
             seed: self.seed,
-            words_consumed,
+            bytes_consumed,
         }
     }
 
     pub fn try_restore_state(&mut self, state: &ChaCha8State) -> Result<(), RestoreStateError> {
-        // We never produce `words_consumed` values larger than the output buffer's size. The u32 ->
+        // We never produce `bytes_consumed` values larger than the output buffer's size. The u32 ->
         // usize conversion can only fail on 16-bit targets, which are not exactly the target
         // audience for this crate, but we can easily handle that while we're here.
-        let words_consumed = usize::try_from(state.words_consumed).unwrap_or(usize::MAX);
-        if words_consumed > self.buf.output().len() {
+        let bytes_consumed = usize::try_from(state.bytes_consumed).unwrap_or(usize::MAX);
+        if bytes_consumed > BUF_OUTPUT_LEN {
             return Err(RestoreStateError { _private: () });
         }
 
         // We can just use `set_seed` to fill the buffer and then skip the parts of that chunk that
         // were marked as already consumed by adjusting our position in the refilled buffer.
         self.set_seed(state.seed);
-        self.i = words_consumed;
+        self.bytes_consumed = bytes_consumed;
         Ok(())
     }
 
     #[inline]
     fn refill(&mut self) {
-        self.seed = *self.buf.new_key();
+        self.seed = Seed::from(self.buf.new_key()).0;
         self.backend.refill(&self.seed, &mut self.buf);
-        self.i = 0;
-    }
-
-    fn need_refill(&self) -> bool {
-        self.i >= self.buf.output().len()
+        self.bytes_consumed = 0;
     }
 
     pub fn next_u32(&mut self) -> u32 {
+        const N: usize = size_of::<u32>();
+
         // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
         // is unlikely. For example, #[cold] on Backend::refill is ignored at the time of this
         // writing. Out of the various ways I've tried writing this function, this one seems to
         // generate the least bad assembly when compiled in isolation. (Of course, in practice we
         // want it to be inlined.)
-        if self.need_refill() {
+        if self.bytes_consumed > BUF_OUTPUT_LEN - N {
             self.refill();
         }
-        let result = self.buf.output()[self.i];
-        self.i += 1;
-        result
+        let bytes = *array_ref![self.buf.output(), self.bytes_consumed, N];
+        self.bytes_consumed += N;
+        u32::from_le_bytes(bytes)
     }
 
     pub fn next_u64(&mut self) -> u64 {
-        let lo_half = u64::from(self.next_u32());
-        let hi_half = u64::from(self.next_u32());
-        (hi_half << 32) | lo_half
+        const N: usize = size_of::<u64>();
+        // Same code as for u32. Making this code generic over `N` is more trouble than it's worth.
+        if self.bytes_consumed > BUF_OUTPUT_LEN - N {
+            self.refill();
+        }
+        let bytes = *array_ref![self.buf.output(), self.bytes_consumed, N];
+        self.bytes_consumed += N;
+        u64::from_le_bytes(bytes)
     }
 
     pub fn read_bytes(&mut self, dest: &mut [u8]) {
         let mut total_bytes_read = 0;
         while total_bytes_read < dest.len() {
             let dest_remainder = &mut dest[total_bytes_read..];
-            if self.need_refill() {
+            if self.bytes_consumed >= self.buf.output().len() {
                 self.refill();
             }
-            let src_words = &mut self.buf.output_mut()[self.i..];
-            let available_bytes = size_of_val::<[u32]>(src_words);
-            let single_read_bytes = cmp::min(available_bytes, dest_remainder.len());
+            let src = &self.buf.output()[self.bytes_consumed..];
+            let read_now = cmp::min(src.len(), dest_remainder.len());
 
-            // Round up the number of bytes read to whole 32-bit words. The + 3 can't overflow
-            // because non-ZST slices are at most `isize::MAX` bytes large. Because `src.len()` is
-            // always a multiple of four, this can only discards some bytes of RNG output when the
-            // total size of `dest` is not a multiple of four.
-            let single_read_words = (single_read_bytes + 3) / 4;
-            debug_assert_eq!(single_read_bytes.div_ceil(4), single_read_words);
+            dest_remainder[..read_now].copy_from_slice(&src[..read_now]);
 
-            // On little-endian targets this is a no-op and should easily be optimized out. On
-            // big-endian targets it's necessary to get the same behavior as on little-endian
-            // targets. We limit this to the words that will be read entirely or partially in this
-            // iteration because that's less work. We do it before the read to get correct results
-            // for the last few bytes of a read that's not a multiple of four bytes. Because the
-            // other bytes of the last partially-read word are discarded in that case, we don't have
-            // to undo the byte swap for that word after the read: the bytes that would be affects
-            // will be skipped anyway.
-            let src_words = &mut src_words[..single_read_words];
-            for word in src_words.iter_mut() {
-                *word = word.to_le();
-            }
-            // With the above preparations, the rest of the work is just a bytewise copy.
-            dest_remainder[..single_read_bytes]
-                .copy_from_slice(&words_as_ne_bytes(src_words)[..single_read_bytes]);
-
-            total_bytes_read += single_read_bytes;
-            self.i += single_read_words;
-            debug_assert!(self.i <= self.buf.output().len());
-            // We only ever read a word partially on the last iteration.
-            debug_assert!(total_bytes_read == dest.len() || (single_read_bytes % 4 == 0));
+            total_bytes_read += read_now;
+            self.bytes_consumed += read_now;
+            debug_assert!(self.bytes_consumed <= self.buf.output().len());
         }
         debug_assert!(total_bytes_read == dest.len());
     }
-}
-
-fn words_as_ne_bytes<'a>(words: &'a [u32]) -> &'a [u8] {
-    // This is almost certainly guaranteed, but spelling out again doesn't hurt.
-    const _ALIGN_OK: () = assert!(align_of::<u8>() <= align_of::<u32>());
-
-    let len = size_of_val::<[u32]>(words);
-    let data: *const u8 = words.as_ptr().cast();
-    // SAFETY:
-    // * The pointer is valid for reading `len` bytes because `u32` has no padding and `words`
-    //   covers exactly that many bytes.
-    // * The pointer is non-null because it came from a valid `&[T]`.
-    // * Alignment is OK because `u32` has equal or greater alignment as `u8`
-    // * The memory will not be written for the duration of 'a because we have a shared borrow of
-    //   `words` for the same duration.
-    // * The total size in bytes is less than `isize::MAX` because it's the same number of bytes as
-    //   `words`, so we just inherit that property.
-    unsafe { slice::from_raw_parts::<'a, u8>(data, len) }
 }
 
 impl fmt::Debug for ChaCha8Rand {

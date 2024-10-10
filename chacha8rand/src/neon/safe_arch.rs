@@ -1,7 +1,7 @@
 use core::arch::aarch64::{
     uint16x8_t, uint32x4_t, uint8x16_t, vaddq_u32, vdupq_n_u32, veorq_u32, vld1q_u32, vld1q_u8,
     vqtbl1q_u8, vreinterpretq_u16_u32, vreinterpretq_u32_u16, vreinterpretq_u32_u8,
-    vreinterpretq_u8_u32, vrev32q_u16, vshlq_n_u32, vsriq_n_u32, vst1q_u32,
+    vreinterpretq_u8_u32, vrev32q_u16, vshlq_n_u32, vsriq_n_u32, vst1q_u8,
 };
 
 // This is redundant with the cfg() this module is gated on, but since we're going to be calling
@@ -75,10 +75,10 @@ pub fn tbl_u8x16(t: uint8x16_t, idx: uint8x16_t) -> uint8x16_t {
     unsafe { vqtbl1q_u8(t, idx) }
 }
 
-pub fn store_u32x4(x: uint32x4_t, dest: &mut [u32; 4]) {
+pub fn store_u8x16(x: uint8x16_t, dest: &mut [u8; 16]) {
     // SAFETY: (1) Requires the neon target feature, which was detected by cfg. (2) Stores 128 bits
-    // through the pointer, which is OK because it's a mutable reference to `[u32; 4]`.
+    // through the pointer, which is OK because it's a mutable reference to `[u8; 16]`.
     unsafe {
-        vst1q_u32(dest.as_mut_ptr(), x);
+        vst1q_u8(dest.as_mut_ptr(), x);
     }
 }
