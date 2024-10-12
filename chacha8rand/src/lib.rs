@@ -55,10 +55,12 @@ struct Buffer {
 }
 
 impl Buffer {
+    #[inline]
     fn output(&self) -> &[u8; BUF_OUTPUT_LEN] {
         array_ref![&self.bytes, 0, BUF_OUTPUT_LEN]
     }
 
+    #[inline]
     fn new_key(&self) -> &[u8; 32] {
         array_ref![&self.bytes, BUF_OUTPUT_LEN, 32]
     }
@@ -67,12 +69,14 @@ impl Buffer {
 pub struct Seed(pub [u32; 8]);
 
 impl From<[u32; 8]> for Seed {
+    #[inline]
     fn from(words: [u32; 8]) -> Self {
         Self(words)
     }
 }
 
 impl From<[u8; 32]> for Seed {
+    #[inline]
     fn from(bytes: [u8; 32]) -> Self {
         Self(array::from_fn(|i| {
             u32::from_le_bytes(*array_ref![bytes, 4 * i, 4])
@@ -81,12 +85,14 @@ impl From<[u8; 32]> for Seed {
 }
 
 impl From<&[u8; 32]> for Seed {
+    #[inline]
     fn from(bytes: &[u8; 32]) -> Self {
         Self::from(*bytes)
     }
 }
 
 impl From<&[u32; 8]> for Seed {
+    #[inline]
     fn from(words: &[u32; 8]) -> Self {
         Self(*words)
     }
@@ -181,6 +187,7 @@ impl ChaCha8Rand {
         self.bytes_consumed = 0;
     }
 
+    #[inline]
     pub fn read_u32(&mut self) -> u32 {
         const N: usize = size_of::<u32>();
 
@@ -197,6 +204,7 @@ impl ChaCha8Rand {
         u32::from_le_bytes(bytes)
     }
 
+    #[inline]
     pub fn read_u64(&mut self) -> u64 {
         const N: usize = size_of::<u64>();
         // Same code as for u32. Making this code generic over `N` is more trouble than it's worth.
