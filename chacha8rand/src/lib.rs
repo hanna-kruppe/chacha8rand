@@ -5,6 +5,7 @@ use core::{array, cmp, error::Error, fmt};
 use arrayref::array_ref;
 
 mod backend;
+mod common_guts;
 #[cfg(feature = "rand_core_0_6")]
 mod rand_core_0_6;
 mod scalar;
@@ -275,12 +276,6 @@ arch_backends! {
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
     mod simd128;
 }
-
-// The constant words in the first row of the initial state
-const C0: u32 = u32::from_le_bytes(*b"expa");
-const C1: u32 = u32::from_le_bytes(*b"nd 3");
-const C2: u32 = u32::from_le_bytes(*b"2-by");
-const C3: u32 = u32::from_le_bytes(*b"te k");
 
 // This impl block is here, not in the `backend` mod, to minimize that code that has access to
 // `Backend`'s private fields.

@@ -1,6 +1,7 @@
 use crate::{
     avx2::safe_arch::{Avx2, __m256i},
-    Backend, Buffer, C0, C1, C2, C3,
+    common_guts::{eight_rounds, init_state},
+    Backend, Buffer,
 };
 use arrayref::{array_mut_ref, mut_array_refs};
 
@@ -33,26 +34,13 @@ pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let splat = |x| avx2.splat(x);
 
     for eight_blocks in 0..2 {
-        #[rustfmt::skip]
-        let mut x = [
-            splat(C0),     splat(C1),     splat(C2),     splat(C3),
-            splat(key[0]), splat(key[1]), splat(key[2]), splat(key[3]),
-            splat(key[4]), splat(key[5]), splat(key[6]), splat(key[7]),
-            ctr,           splat(0),      splat(0),      splat(0)
-        ];
+        let mut x = init_state(ctr, key, splat);
 
-        const ROUNDS: usize = 8;
-        for _ in (0..ROUNDS).step_by(2) {
-            quarter_round(avx2, &mut x, 0, 4, 8, 12);
-            quarter_round(avx2, &mut x, 1, 5, 9, 13);
-            quarter_round(avx2, &mut x, 2, 6, 10, 14);
-            quarter_round(avx2, &mut x, 3, 7, 11, 15);
-
-            quarter_round(avx2, &mut x, 0, 5, 10, 15);
-            quarter_round(avx2, &mut x, 1, 6, 11, 12);
-            quarter_round(avx2, &mut x, 2, 7, 8, 13);
-            quarter_round(avx2, &mut x, 3, 4, 9, 14);
-        }
+        eight_rounds(
+            &mut x,
+            #[inline(always)]
+            |abcd| quarter_round(avx2, abcd),
+        );
 
         for i in 4..12 {
             x[i] = avx2.add_u32(x[i], splat(key[i - 4]));
@@ -71,26 +59,24 @@ pub unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
 }
 
 #[inline(always)]
-fn quarter_round(avx2: Avx2, x: &mut [__m256i; 16], a: usize, b: usize, c: usize, d: usize) {
-    // a += b; d ^= a; d = rotl(d, 16);
-    x[a] = avx2.add_u32(x[a], x[b]);
-    x[d] = avx2.xor(x[d], x[a]);
-    x[d] = rotl::<16, 16>(avx2, x[d]);
+fn quarter_round(avx2: Avx2, [mut a, mut b, mut c, mut d]: [__m256i; 4]) -> [__m256i; 4] {
+    a = avx2.add_u32(a, b);
+    d = avx2.xor(d, a);
+    d = rotl::<16, 16>(avx2, d);
 
-    // c += d; b ^= c; b = rotl(b, 12);
-    x[c] = avx2.add_u32(x[c], x[d]);
-    x[b] = avx2.xor(x[b], x[c]);
-    x[b] = rotl::<12, 20>(avx2, x[b]);
+    c = avx2.add_u32(c, d);
+    b = avx2.xor(b, c);
+    b = rotl::<12, 20>(avx2, b);
 
-    // a += b; d ^= a; d = rotl(d, 8);
-    x[a] = avx2.add_u32(x[a], x[b]);
-    x[d] = avx2.xor(x[d], x[a]);
-    x[d] = rotl::<8, 24>(avx2, x[d]);
+    a = avx2.add_u32(a, b);
+    d = avx2.xor(d, a);
+    d = rotl::<8, 24>(avx2, d);
 
-    // c += d; b ^= c; b = rotl(b, 7);
-    x[c] = avx2.add_u32(x[c], x[d]);
-    x[b] = avx2.xor(x[b], x[c]);
-    x[b] = rotl::<7, 25>(avx2, x[b]);
+    c = avx2.add_u32(c, d);
+    b = avx2.xor(b, c);
+    b = rotl::<7, 25>(avx2, b);
+
+    [a, b, c, d]
 }
 
 #[inline(always)]

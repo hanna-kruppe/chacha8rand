@@ -1,4 +1,7 @@
-use crate::{Buffer, C0, C1, C2, C3};
+use crate::{
+    common_guts::{eight_rounds, init_state},
+    Buffer,
+};
 use arrayref::array_mut_ref;
 
 #[inline(never)]
@@ -19,39 +22,10 @@ fn quad_block(key: &[u32; 8], i: usize, buf: &mut [u8; 256]) {
     block_strided(key, ctr + 3, array_mut_ref![buf, 12, 256 - 12]);
 }
 
-// This is a macro instead of a function because that makes the invocations looks more like the
-// spec, and doesn't require any borrow checker workarounds.
-#[rustfmt::skip]
-macro_rules! quarter_round {
-    ($a: expr, $b: expr, $c: expr, $d: expr) => {
-        $a = $a.wrapping_add($b); $d ^= $a; $d = $d.rotate_left(16);
-        $c = $c.wrapping_add($d); $b ^= $c; $b = $b.rotate_left(12);
-        $a = $a.wrapping_add($b); $d ^= $a; $d = $d.rotate_left(8);
-        $c = $c.wrapping_add($d); $b ^= $c; $b = $b.rotate_left(7);
-    };
-}
-
 fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u8; 244]) {
-    #[rustfmt::skip]
-    let mut x = [
-        C0,     C1,     C2,     C3,
-        key[0], key[1], key[2], key[3],
-        key[4], key[5], key[6], key[7],
-        ctr,    0,      0,      0
-    ];
+    let mut x = init_state(ctr, key, |n| n);
 
-    const ROUNDS: usize = 8;
-    for _ in (0..ROUNDS).step_by(2) {
-        quarter_round!(x[0], x[4], x[8], x[12]);
-        quarter_round!(x[1], x[5], x[9], x[13]);
-        quarter_round!(x[2], x[6], x[10], x[14]);
-        quarter_round!(x[3], x[7], x[11], x[15]);
-
-        quarter_round!(x[0], x[5], x[10], x[15]);
-        quarter_round!(x[1], x[6], x[11], x[12]);
-        quarter_round!(x[2], x[7], x[8], x[13]);
-        quarter_round!(x[3], x[4], x[9], x[14]);
-    }
+    eight_rounds(&mut x, quarter_round);
 
     for i in 4..12 {
         x[i] = x[i].wrapping_add(key[i - 4]);
@@ -60,4 +34,25 @@ fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u8; 244]) {
     for (i, xi) in x.iter().enumerate() {
         *array_mut_ref![out, i * 16, 4] = xi.to_le_bytes();
     }
+}
+
+#[inline(always)]
+fn quarter_round([mut a, mut b, mut c, mut d]: [u32; 4]) -> [u32; 4] {
+    a = a.wrapping_add(b);
+    d ^= a;
+    d = d.rotate_left(16);
+
+    c = c.wrapping_add(d);
+    b ^= c;
+    b = b.rotate_left(12);
+
+    a = a.wrapping_add(b);
+    d ^= a;
+    d = d.rotate_left(8);
+
+    c = c.wrapping_add(d);
+    b ^= c;
+    b = b.rotate_left(7);
+
+    [a, b, c, d]
 }
