@@ -7,19 +7,13 @@ use arrayref::array_mut_ref;
 #[inline(never)]
 pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
-    quad_block(key, 0, array_mut_ref![buf, 0, 256]);
-    quad_block(key, 1, array_mut_ref![buf, 256, 256]);
-    quad_block(key, 2, array_mut_ref![buf, 2 * 256, 256]);
-    quad_block(key, 3, array_mut_ref![buf, 3 * 256, 256]);
-}
-
-fn quad_block(key: &[u32; 8], i: usize, buf: &mut [u8; 256]) {
-    assert!(i < 4);
-    let ctr = (i * 4) as u32;
-    block_strided(key, ctr, array_mut_ref![buf, 0, 256 - 12]);
-    block_strided(key, ctr + 1, array_mut_ref![buf, 4, 256 - 12]);
-    block_strided(key, ctr + 2, array_mut_ref![buf, 8, 256 - 12]);
-    block_strided(key, ctr + 3, array_mut_ref![buf, 12, 256 - 12]);
+    for quad in 0..4 {
+        let quad_buf = array_mut_ref![buf, quad * 256, 256];
+        for block in 0..4 {
+            let ctr = (quad * 4 + block) as u32;
+            block_strided(key, ctr, array_mut_ref![quad_buf, 4 * block, 256 - 12]);
+        }
+    }
 }
 
 fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u8; 244]) {
