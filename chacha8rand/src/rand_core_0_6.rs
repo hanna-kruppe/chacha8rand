@@ -4,11 +4,11 @@ use crate::ChaCha8Rand;
 
 impl RngCore for ChaCha8Rand {
     fn next_u32(&mut self) -> u32 {
-        ChaCha8Rand::next_u32(self)
+        self.read_u32()
     }
 
     fn next_u64(&mut self) -> u64 {
-        ChaCha8Rand::next_u64(self)
+        self.read_u64()
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {

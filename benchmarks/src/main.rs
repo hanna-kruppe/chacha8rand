@@ -47,7 +47,7 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     let mut benchmarks = Vec::new();
 
     for (backend_name, backend) in &backends {
-        benchmarks.push(bench_next_u32(backend_name, *backend));
+        benchmarks.push(bench_u32s(backend_name, *backend));
     }
     benchmarks.push(bench_next_u32_rand_chacha());
 
@@ -140,14 +140,14 @@ fn one_sample(bench: &mut Benchmark) -> (Duration, u32) {
 
 const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
 
-fn bench_next_u32(backend_name: &str, backend: Backend) -> Benchmark {
+fn bench_u32s(backend_name: &str, backend: Backend) -> Benchmark {
     let backend = black_box(backend);
     let mut rng = ChaCha8Rand::with_backend(SEED, backend);
     Benchmark {
-        label: format!("next_u32/{backend_name}"),
+        label: format!("u32/{backend_name}"),
         work: Box::new(move |n| {
             for _ in 0..n {
-                black_box(rng.next_u32());
+                black_box(rng.read_u32());
             }
         }),
     }
@@ -156,7 +156,7 @@ fn bench_next_u32(backend_name: &str, backend: Backend) -> Benchmark {
 fn bench_next_u32_rand_chacha() -> Benchmark {
     let mut rng = rand_chacha::ChaCha8Rng::from_seed(*SEED);
     Benchmark {
-        label: "next_u32/rand_chacha".to_string(),
+        label: "u32/rand_chacha".to_string(),
         work: Box::new(move |n| {
             for _ in 0..n {
                 black_box(rng.next_u32());
@@ -166,7 +166,7 @@ fn bench_next_u32_rand_chacha() -> Benchmark {
 }
 
 fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchmark {
-    let label = format!("bulk/{n}/{backend_name}", n = dest.len());
+    let label = format!("bulk{n}/{backend_name}", n = dest.len());
     Benchmark {
         label,
         work: Box::new(move |n| {
@@ -180,7 +180,7 @@ fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchm
 }
 
 fn bench_bulk_rand_chacha(mut dest: Vec<u8>) -> Benchmark {
-    let label = format!("bulk/{n}/rand_chacha", n = dest.len());
+    let label = format!("bulk{n}/rand_chacha", n = dest.len());
     Benchmark {
         label,
         work: Box::new(move |n| {

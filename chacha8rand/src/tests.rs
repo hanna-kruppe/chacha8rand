@@ -78,14 +78,14 @@ fn check_save_restore_at(u32s_before_save_restore: u32) {
         if pos == u32s_before_save_restore {
             let state = rng.clone_state();
             // Let's consume a bit of output to avoid rubber-stamping no-op implementations.
-            rng.next_u64();
-            rng.next_u32();
+            rng.read_u64();
+            rng.read_u32();
             rng.try_restore_state(&state)
                 .expect("save-restore roundtrip should always succeed");
             did_save_restore += 1;
         }
         pos += 1;
-        rng.next_u32().to_le_bytes()
+        rng.read_u32().to_le_bytes()
     })
     .flatten();
     check_byte_output(output);
@@ -101,7 +101,7 @@ fn restore_rejects_slighty_too_large_count() {
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:
-    check_byte_output(iter::repeat_with(|| rng.next_u32().to_le_bytes()).flatten());
+    check_byte_output(iter::repeat_with(|| rng.read_u32().to_le_bytes()).flatten());
 }
 
 #[test]
@@ -113,18 +113,18 @@ fn restore_rejects_excessive_count() {
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:
-    check_byte_output(iter::repeat_with(|| rng.next_u32().to_le_bytes()).flatten());
+    check_byte_output(iter::repeat_with(|| rng.read_u32().to_le_bytes()).flatten());
 }
 
 fn sample_output_u32s(backend: Backend) {
     let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
-    let u32s = iter::repeat_with(move || rng.next_u32());
+    let u32s = iter::repeat_with(move || rng.read_u32());
     check_byte_output(u32s.flat_map(u32::to_le_bytes));
 }
 
 fn sample_output_u64s(backend: Backend) {
     let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
-    let u64s = iter::repeat_with(move || rng.next_u64());
+    let u64s = iter::repeat_with(move || rng.read_u64());
     check_byte_output(u64s.flat_map(u64::to_le_bytes));
 }
 
@@ -200,7 +200,7 @@ fn read_u32s_and_bytes_interleaved(read_size: usize) {
             rng.read_bytes(&mut buf[..trailing_bytes]);
             output.extend_from_slice(&buf[..trailing_bytes]);
         }
-        output.extend_from_slice(&rng.next_u32().to_le_bytes());
+        output.extend_from_slice(&rng.read_u32().to_le_bytes());
         let read_start = output.len();
         output.resize(read_start + read_size, 0);
         rng.read_bytes(&mut output[read_start..]);

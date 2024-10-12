@@ -18,8 +18,8 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 
 // Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
 // the highest alignment. There are other layouts that also minimize padding, but the one rustc
-// picks happen to generate slightly better code for `next_u32` on some targets (e.g., on aarch64,
-// it avoids computing the address of the buffer before checking if it needs to be refilled).
+// picks happen to generate slightly better code for `read_{u32,u64}` on some targets (e.g., on
+// aarch64, not computing the address of the buffer before checking if it needs to be refilled).
 #[derive(Clone)]
 pub struct ChaCha8Rand {
     backend: Backend,
@@ -180,7 +180,7 @@ impl ChaCha8Rand {
         self.bytes_consumed = 0;
     }
 
-    pub fn next_u32(&mut self) -> u32 {
+    pub fn read_u32(&mut self) -> u32 {
         const N: usize = size_of::<u32>();
 
         // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
@@ -196,7 +196,7 @@ impl ChaCha8Rand {
         u32::from_le_bytes(bytes)
     }
 
-    pub fn next_u64(&mut self) -> u64 {
+    pub fn read_u64(&mut self) -> u64 {
         const N: usize = size_of::<u64>();
         // Same code as for u32. Making this code generic over `N` is more trouble than it's worth.
         if self.bytes_consumed > BUF_OUTPUT_LEN - N {
