@@ -11,8 +11,9 @@ Deterministic random number generator that's robust, reproducible and fast
 keywords = ["no_std", "no-std", "random"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
 include = [
-    "../LICENSE-MIT",
-    "../LICENSE-APACHE",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+    "/src/**/*.rs",
 ]
 
 [features]
