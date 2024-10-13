@@ -277,6 +277,10 @@ impl fmt::Debug for ChaCha8Rand {
 /// an existing generator), but there's probably no reason to do so. You can supply a new seed
 /// directly with [`ChaCha8Rand::new`] or [`ChaCha8Rand::set_seed`].
 ///
+/// Finally, note that [`ChaCha8Rand`] also implements `Clone`. Cloning a generator achieves the
+/// same effect as taking a snapshot of its state, but the generator is much larger because it
+/// includes a big buffer of output that could be regenerated on demand from a snapshot.
+///
 /// ## Examples
 ///
 /// ```
