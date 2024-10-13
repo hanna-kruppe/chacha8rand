@@ -1,6 +1,6 @@
 //! Reproducible, robust and (last but not least) fast pseudorandomness.
 //!
-//! This crate implements the [chacha8rand][spec] specification, originally designed for Go's
+//! This crate implements the [ChaCha8Rand][spec] specification, originally designed for Go's
 //! `math/rand/v2` package. The language-independent specification and test vector helps with
 //! long-term reproducibility and interoperability. Building on the ChaCha8 stream cipher ensures
 //! high statistical quality and removes entire classes of "you're holding it wrong"-style problems
@@ -107,18 +107,19 @@
 //!
 //! Neither feature is enabled by default, so you don't need to add `no-default-features = true`. In
 //! fact, please don't, because that makes it harder to add more feature flags in the future without
-//! semver-breaking changes.
+//! semver-breaking changes. There are also some features with an "unstable" prefix in their name.
+//! Anything covered by "unstable" features is explicitly not covered by SemVer and may change or be
+//! removed at any time.
 //!
-//! As for the non-Cargo meaning of "features" -- this crate has SIMD backends for better
-//! preformance on several common targets. Currently that's SSE2 and AVX2 on x86 and x86_64, NEON on
-//! AArch64 ([little-endian only][aarch64be-neon]), and SIMD128 on Webassembly. Only the AVX2
-//! backend uses runtime detection at the moment. Of course, there is also a portable implementation
-//! for all other platforms, which is slower in microbenchmarks but still plenty fast enough for
-//! most use cases. It's also tested to work correctly on big endian targets.
+//! As for the non-Cargo meaning of "features", take a look at [`ChaCha8Rand`] to learn more about
+//! these aspects:
 //!
-//! Another feature that may be worth noting is that the RNG state can be serialized into as little
-//! as 34 bytes. There are no `serde` impls, but it's only two fields of data (see
-//! [`ChaCha8State`]).
+//! * On several common targets, SIMD instructions are used to improve performance.
+//! * Once the crate reaches 1.0, the output you get from a given seed will not change in minor or
+//!   patch releases.
+//! * The generator's state can be serialized into as little as 34 bytes.
+//!
+//! # Drawbacks
 //!
 //! The main reasons why you might not want to use this crate are the use of `unsafe` for accessing
 //! SIMD intrinsics and the relatively large buffer (4x larger than the Go implementation). The
@@ -126,52 +127,8 @@
 //! you want to have many instances and care about memory consumption and/or only consume a small
 //! amount of randomness from most of those instances.
 //!
-//! # Output Stability And Go Interoperability
-//!
-//! This crate and Go's `rand.ChaCha8` both implement [the same specification][spec], so they (and
-//! any other implementation of the spec) should produce the same stream of bytes from a given seed.
-//! Note that the C2SP specification hasn't received a "v1.0" tag yet at the time of this writing,
-//! but since Go has already shipped its implementation a while ago and the same people wrote the
-//! spec, incompatible changes seem unlikely.
-//!
-//! This crate may still go through breaking API changes before its 1.0 release. However, the output
-//! behavior described by the specification will not change unless unless the specification itself
-//! makes a breaking 2.0 release. Thus, this crate promises a deterministic, portable output byte
-//! stream across minor and patch versions (except fixing divergences from the spec if any are found
-//! before the 1.0 release). Compare and contrast the [reproducibility policy of the `rand`
-//! crates][rand-repro-policy]. Specifically:
-//!
-//! 1. For a given 32-byte seed, if you consume the output as a byte stream with calls to
-//!    [`ChaCha8Rand::read_bytes`], you'll the unique byte stream described by the spec, no matter
-//!    how you slice it up into multiple reads of possibly different sizes. This should match Go's
-//!    `ChaCha8.Read`, added in Go 1.23.
-//! 2. For a given 32-byte seed, if you consume the output as sequence of `u64`s, the raw output
-//!    bytes are always interpreted as little-endian integers. This is also how Go's `Uint64()`
-//!    method works, at least right now.
-//! 3. The same applies, if you consume the output as a sequence of `u32`s. Note that there's no
-//!    direct Go equivalent for this (the `Rand` helper has a method for this, but it draws 64 bits
-//!    from the source).
-//! 3. All inputs (seeds) and outputs always use little-endian byte order. ChaCha20 works on 32-bit
-//!    words internally but the "native" endianness never affects anything. Neither does
-//!    `size_of::<usize>()` for that matter, because it doesn't show up in the API.
-//!
-//! However, if you mix or interleave different ways of drawing randomness from a single generator,
-//! the output you get is not covered by this promise. The byte-oriented `Read` method of Go's
-//! `ChaCha8` has this note in its documentation:
-//!
-//! > If calls to Read and Uint64 are interleaved, the order in which bits are returned by the two
-//! > is undefined, and Read may return bits generated before the last call to Uint64.
-//!
-//! Similarly, interleaving calls to [`ChaCha8Rand::read_bytes`], [`ChaCha8Rand::read_u64`], and
-//! [`ChaCha8Rand::read_u32`] may produce output bytes out of order w.r.t. the raw byte stream and
-//! and some might be skipped (but each byte will be output at most once). At the time of this
-//! writing [`ChaCha8Rand`] and Go already behave very differently when you do this. Further changes
-//! to this behavior will not be considered semver-breaking.
-//!
-//! [aarch64be-neon]: https://github.com/rust-lang/stdarch/issues/1484
 //! [getrandom]: https://crates.io/crates/getrandom
 //! [go-blog]: https://go.dev/blog/chacha8rand
-//! [rand-repro-policy]: https://rust-random.github.io/book/crate-reprod.html
 //! [spec]: https://c2sp.org/chacha8rand
 //! [sts-corr-rand]: https://forgottenarbiter.github.io/Correlated-Randomness/
 #![forbid(unsafe_op_in_unsafe_fn)]
@@ -196,12 +153,87 @@ use backend::Backend;
 const BUF_TOTAL_LEN: usize = 1024;
 const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 
-// Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
-// the highest alignment. There are other layouts that also minimize padding, but the one rustc
-// picks happen to generate slightly better code for `read_{u32,u64}` on some targets (e.g., on
-// aarch64, not computing the address of the buffer before checking if it needs to be refilled).
+/// A deterministic stream of pseudorandom data from a 32-byte seed.
+///
+/// See the crate documentation for a higher-level introduction and quick-start examples. Here
+/// you'll only find excessive extra details about reproducibility and some notes about
+/// (de-)serialization and SIMD backends.
+///
+/// # Reproducibility
+///
+/// Until I release version 1.0 of this crate, I reserve the right to fix divergences from the
+/// [ChaCha8Rand specification][spec] or tweak behavior not covered by the spec. Afterwards, **the
+/// output for a given seed will not change in minor or patch releases**. If there is an
+/// incompatible change to the spec and I want to implement it, or someone finds a serious bug that
+/// can't be fixed without changing output, that will be a semver-major release. Note that the spec
+/// technically hasn't been tagged as 1.0, but breaking changes seem very unlikely since the same
+/// people already shipped an implementation in the Go standard library.
+///
+/// The sequence of bytes generated from a given seed is (or should be) uniquely determined by the
+/// spec. It does not depend on the target platform, in particular, it doesn't depend on "native"
+/// endianness. The algorithm uses 32-bit words internally, but it always interprets the seed in
+/// little-endian byte order and produces output in little-endian byte order. So if you only ever
+/// treat the generator as a stream of bytes ([`ChaCha8Rand::read_bytes`] and
+/// [`ChaCha8Rand::read_seed`]), you'll get the same output from any other implementation of the
+/// spec.
+///
+/// Alternatively, if you treat it as a stream of 64-bit integers ([`ChaCha8Rand::read_u64`]), every
+/// group of eight bytes is interpreted in little-endian byte order. This is not part of the spec,
+/// strictly speaking, but it's a fairly natural choice. It's also how Go's version implements the
+/// `Uint64()` method and the `rand.Source` interface.
+///
+/// However, if you start consuming the randomness in one way and later switch to another way, the
+/// output you'll get depends on implementation choices that are not uniquely determined. The raw
+/// byte stream may be consumed out of order and parts of it may be skipped, but no byte should be
+/// used more than once. This crate also lets you consume 32-bit integers
+/// ([`ChaCha8Rand::read_u32`]) directly, which has no Go equivalent (the `Rand.Uint32` helper takes
+/// 64 bits from the source and discards half). I can only document what this crate implements:
+///
+/// * Consuming bytes in any granularity via [`ChaCha8Rand::read_bytes`] and
+///   [`ChaCha8Rand::read_seed`] always consumes the output byte stream in order, without skipping
+///   or reordering anything.
+/// * Consuming integers with [`ChaCha8Rand::read_u32`] and [`ChaCha8Rand::read_u64`] generally acts
+///   like reading the corresponding number of bytes (`size_of::<T>()`) with
+///   [`ChaCha8Rand::read_bytes`] and interpreting them in little-endian byte order, *except* when
+///   there are too few output bytes left in the current iteration of ChaCha8Rand (992 output bytes
+///   plus 32 byte input for the next iteration). In this case, the remaining bytes of the current
+///   iteration are skipped and the output is taken from the first bytes of the next iteration.
+///
+/// Committing to this behavior effectively means baking in some artifacts of the current
+/// implementation, e.g., buffering a full iteration of output and and handling unaligned
+/// `u32`/`u64` reads from the buffer. Again, I reserve the right to tweak this before the crate's
+/// 1.0 release, but then I'll commit to *something*.
+///
+/// # Serialization and Deserialization
+///
+/// Besides storing the initial seed, you can also store the state of the generator at any point in
+/// time with [`ChaCha8Rand::clone_state`] and [`ChaCha8Rand::try_restore_state`]. See those methods
+/// for more details. The important thing with respect to reproducibility is that the serialized
+/// state records an exact position in the output byte stream. Thus, if you save the state at any
+/// point and later restore it, you'll get the same output as if you had kept working with the
+/// original generator, regardless of how how you read from it before and after.
+///
+/// # SIMD Backends
+///
+/// Like the Go version, this crate uses 128-bit SIMD for better performance on x86_64 (SSE2
+/// instructions) and AArch64 (NEON, [little-endian only for now][aarch64be-neon]). Of course, there
+///  is also a portable implementation for all other platforms, which is slower in microbenchmarks
+/// but still plenty fast enough for most use cases.
+///
+/// Unlike Go 1.23, this crate also uses SIMD on 32-bit x86 targets and Webassembly with the
+/// `simd128` feature. There's also a AVX2 backend for 256-bit SIMD on x86 and x86_64. This backend
+/// uses runtime feature detection (if the `std` feature is enabled) so you don't have to fiddle
+/// with `-Ctarget-feature` and risk the program not working on some older CPUs. Other instruction
+/// sets and more runtime feature detection may be added in the future.
+///
+/// [aarch64be-neon]: https://github.com/rust-lang/stdarch/issues/1484
+/// [spec]: https://c2sp.org/chacha8rand
 #[derive(Clone)]
 pub struct ChaCha8Rand {
+    // Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
+    // the highest alignment. There are other layouts that also minimize padding, but the one rustc
+    // picks happen to generate slightly better code for `read_{u32,u64}` on some targets (e.g., on
+    // aarch64, not computing the address of the buffer before checking if it needs to be refilled).
     backend: Backend,
     seed: [u32; 8],
     /// Position in `buf.output()` of the next byte to produce as output. Should be equal to
