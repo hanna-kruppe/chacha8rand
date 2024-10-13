@@ -252,31 +252,34 @@ impl fmt::Debug for ChaCha8Rand {
 
 /// Snapshot of the state of a [`ChaCha8Rand`] instance.
 ///
-/// Created with [`ChaCha8Rand::clone_state`] and used by [`ChaCha8Rand::try_restore_state`].
+/// Created with [`ChaCha8Rand::clone_state`] and used by [`ChaCha8Rand::try_restore_state`]. It
+/// simply records the seed of the current iteration of the generator and how many output bytes of
+/// that iteration have already been consumed. Restoring from it is effectively the same as calling
+/// `rng.set_seed(&seed)` and then throwing away `bytes_consumed` many bytes of output. However,
+/// going through [`ChaCha8Rand::try_restore_state`] can catch some possible mistakes because it
+/// validates that `bytes_consumed` is in the range it should be.
+///
 /// Possible use cases include:
 ///
+/// * Saving and restoring the RNG state as part of a game's (auto-)save feature.
 /// * Serializing it to disk to suspend and later resume a computation without having the timing of
 ///   suspend/resume affect the result.
-/// * Rewinding to an earlier state for save/restore functionality in a game.
 /// * Forking a randomized algorithm, running two versions that get the same randomness but differ
 ///   in some other way, to see how they diverge.
 ///
 /// There are no `serde` impls. Instead, the fields are public so you can (de-)serialize them in any
-/// way you see fit. Note that not every `u16` value is a valid value for `bytes_consumed`, so
-/// restoring can fail.
+/// way you see fit. In this case you should be prepared to handle errors due to out-of-range
+/// `bytes_consumed` values gracefully.
 ///
-/// There is nothing preventing you from constructing a [`ChaCha8State`] out of thin air (rather
-/// than cloning from an existing generator), but you probably shouldn't do that. You can supply a
-/// new seed directly with [`ChaCha8Rand::new`] or [`ChaCha8Rand::set_seed`]. Fiddling with
-/// `bytes_consumed` isn't significantly more efficient than reading that many bytes from the
-/// generator and throwing them away.
+/// Nothing stops you from constructing a [`ChaCha8State`] out of thin air (rather than cloning from
+/// an existing generator), but there's probably no reason to do so. You can supply a new seed
+/// directly with [`ChaCha8Rand::new`] or [`ChaCha8Rand::set_seed`].
 ///
 /// ## Examples
 ///
 /// ```
 /// # use chacha8rand::ChaCha8Rand;
-/// # let seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
-/// let mut rng = ChaCha8Rand::new(&seed);
+/// # let mut rng = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
 /// let state = rng.clone_state();
 /// let first_output = rng.read_u64();
 /// rng.try_restore_state(&state).expect("snapshot is valid because it was not modified");
@@ -346,6 +349,7 @@ impl ChaCha8Rand {
     /// Reproducing the sample output from [the ChaCha8Rand specification]:
     ///
     /// ```
+    /// # use chacha8rand::ChaCha8Rand;
     /// let mut sample = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
     /// assert_eq!(sample.read_u64(), 0xb773b6063d4616a5);
     /// assert_eq!(sample.read_u64(), 0x1160af22a66abc3c);
