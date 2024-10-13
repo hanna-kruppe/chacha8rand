@@ -9,6 +9,10 @@ description = """
 Deterministic random number generator that's robust, reproducible and fast
 """
 keywords = ["no_std", "no-std", "random"]
+include = [
+    "../LICENSE-MIT",
+    "../LICENSE-APACHE",
+]
 
 [features]
 default = []

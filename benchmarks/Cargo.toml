@@ -3,6 +3,7 @@ name = "benchmarks"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 chacha8rand = { path = "../chacha8rand", features = ["std", "unstable_internals"] }
