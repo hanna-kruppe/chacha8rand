@@ -244,6 +244,12 @@ pub struct ChaCha8Rand {
     buf: Buffer,
 }
 
+impl fmt::Debug for ChaCha8Rand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ChaCha8Rand { .. }")
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct ChaCha8State {
     pub seed: [u8; 32],
@@ -252,7 +258,7 @@ pub struct ChaCha8State {
 
 impl fmt::Debug for ChaCha8State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ChaCha8State {}")
+        f.write_str("ChaCha8State { .. }")
     }
 }
 
@@ -435,12 +441,6 @@ fn seed_to_bytes(seed: &[u32; 8]) -> [u8; 32] {
         bytes[4 * i..][..4].copy_from_slice(&word.to_le_bytes());
     }
     bytes
-}
-
-impl fmt::Debug for ChaCha8Rand {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ChaCha8 {}")
-    }
 }
 
 macro_rules! arch_backends {
