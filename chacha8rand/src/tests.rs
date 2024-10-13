@@ -1,6 +1,7 @@
 extern crate std;
 use core::iter;
 use std::prelude::rust_2021::*;
+use std::vec;
 
 use crate::{Backend, ChaCha8Rand, ChaCha8State, BUF_OUTPUT_LEN};
 
@@ -99,7 +100,7 @@ fn restore_rejects_slighty_too_large_count() {
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:
-    check_byte_output(iter::repeat_with(|| rng.read_u32().to_le_bytes()).flatten());
+    check_byte_output(iter::repeat_with(|| rng.read_u32()).flat_map(u32::to_le_bytes));
 }
 
 #[test]
@@ -111,7 +112,39 @@ fn restore_rejects_excessive_count() {
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:
-    check_byte_output(iter::repeat_with(|| rng.read_u32().to_le_bytes()).flatten());
+    check_byte_output(iter::repeat_with(|| rng.read_u32()).flat_map(u32::to_le_bytes));
+}
+
+#[test]
+fn set_seed_is_idempotent() {
+    let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
+    rng.set_seed(SAMPLE_SEED);
+    check_byte_output(iter::repeat_with(|| rng.read_u32()).flat_map(u32::to_le_bytes));
+}
+
+#[test]
+fn set_seed_with_fresh_buffer() {
+    set_seed_after_some_output(0);
+}
+
+#[test]
+fn set_seed_rewinds_within_block() {
+    set_seed_after_some_output(15);
+}
+
+#[test]
+fn set_seed_rewinds_many_blocks() {
+    set_seed_after_some_output(2000);
+}
+
+fn set_seed_after_some_output(advance_bytes: usize) {
+    // Use a different seed initially to ensure `set_seed` actually overwrites it.
+    let tweaked_seed = SAMPLE_SEED.map(|byte| byte ^ 3);
+    let mut rng = ChaCha8Rand::new(&tweaked_seed);
+    let mut discard = vec![0; advance_bytes];
+    rng.read_bytes(&mut discard);
+    rng.set_seed(SAMPLE_SEED);
+    check_byte_output(iter::repeat_with(|| rng.read_u32()).flat_map(u32::to_le_bytes));
 }
 
 fn sample_output_u32s(backend: Backend) {
