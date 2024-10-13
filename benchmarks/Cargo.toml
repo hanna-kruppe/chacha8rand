@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chacha8rand = { path = "../chacha8rand" }
+chacha8rand = { path = "../chacha8rand", features = ["std", "unstable_internals"] }
 rand_core = "0.6"
 rand_chacha = "0.3"

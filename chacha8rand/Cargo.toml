@@ -7,6 +7,7 @@ edition = "2021"
 default = []
 rand_core_0_6 = ["dep:rand_core"]
 std = []
+unstable_internals = []
 
 [dependencies]
 arrayref = "0.3.9"

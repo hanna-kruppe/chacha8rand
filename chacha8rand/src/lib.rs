@@ -145,7 +145,10 @@ mod scalar;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "unstable_internals")]
 pub use backend::Backend;
+#[cfg(not(feature = "unstable_internals"))]
+use backend::Backend;
 
 const BUF_TOTAL_LEN: usize = 1024;
 const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
@@ -218,11 +221,18 @@ impl fmt::Display for RestoreStateError {
 impl Error for RestoreStateError {}
 
 impl ChaCha8Rand {
+    #[inline]
     pub fn new(seed: &[u8; 32]) -> Self {
-        ChaCha8Rand::with_backend(seed, Backend::detect_best())
+        Self::with_backend_impl(seed, Backend::detect_best())
     }
 
+    #[cfg(feature = "unstable_internals")]
+    #[inline]
     pub fn with_backend(seed: &[u8; 32], backend: Backend) -> Self {
+        Self::with_backend_impl(seed, backend)
+    }
+
+    fn with_backend_impl(seed: &[u8; 32], backend: Backend) -> Self {
         let mut this = ChaCha8Rand {
             seed: [0; 8],
             bytes_consumed: 0,
@@ -387,32 +397,36 @@ arch_backends! {
     mod simd128;
 }
 
-// This impl block is here, not in the `backend` mod, to minimize that code that has access to
+// These impl blocks are here, not in the `backend` mod, to minimize that code that has access to
 // `Backend`'s private fields.
+
 impl Backend {
-    pub fn detect_best() -> Self {
+    fn detect_best() -> Self {
         // On x86, we prefer AVX2 where available, otherwise we'll almost always have SSE2 without
         // runtime detection.
-        if let Some(avx2) = Backend::x86_avx2() {
+        if let Some(avx2) = avx2::detect() {
             return avx2;
         }
-        if let Some(sse2) = Backend::x86_sse2() {
+        if let Some(sse2) = sse2::detect() {
             return sse2;
         }
 
-        if let Some(neon) = Backend::aarch64_neon() {
+        if let Some(neon) = neon::detect() {
             return neon;
         }
 
-        if let Some(simd128) = Backend::wasm32_simd128() {
+        if let Some(simd128) = simd128::detect() {
             return simd128;
         }
 
-        Backend::scalar()
+        scalar::backend()
     }
+}
 
-    pub fn scalar() -> Backend {
-        Self::new(scalar::fill_buf)
+#[cfg(feature = "unstable_internals")]
+impl Backend {
+    pub fn scalar() -> Self {
+        scalar::backend()
     }
 
     pub fn x86_avx2() -> Option<Self> {

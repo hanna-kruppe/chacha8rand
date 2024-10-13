@@ -14,8 +14,6 @@ macro_rules! test_backends {
         $(
             $(#[cfg($gate)])?
             mod $name {
-                use crate::Backend;
-
                 #[test]
                 fn sample_output_u32s() {
                     super::sample_output_u32s($ctor);
@@ -31,19 +29,19 @@ macro_rules! test_backends {
 }
 
 test_backends! {
-    scalar => Backend::scalar();
+    scalar => crate::scalar::backend();
     #[cfg(any(
         target_arch = "x86_64",
         // because we have no runtime detection for sse2
         all(target_arch = "x86", target_feature = "sse2"),
     ))]
-    sse2 => Backend::x86_sse2().expect("this test requires sse2");
+    sse2 => crate::sse2::detect().expect("this test requires sse2");
     #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), feature = "std"))]
-    avx2 => Backend::x86_avx2().expect("this test requires avx2");
+    avx2 => crate::avx2::detect().expect("this test requires avx2");
     #[cfg(target_arch = "aarch64")]
-    neon => Backend::aarch64_neon().expect("this test requires neon");
+    neon => crate::neon::detect().expect("this test requires neon");
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    simd128 => Backend::wasm32_simd128().expect("this test requires simd128");
+    simd128 => crate::simd128::detect().expect("this test requires simd128");
 }
 
 #[test]
@@ -117,13 +115,13 @@ fn restore_rejects_excessive_count() {
 }
 
 fn sample_output_u32s(backend: Backend) {
-    let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
+    let mut rng = ChaCha8Rand::with_backend_impl(SAMPLE_SEED, backend);
     let u32s = iter::repeat_with(move || rng.read_u32());
     check_byte_output(u32s.flat_map(u32::to_le_bytes));
 }
 
 fn sample_output_u64s(backend: Backend) {
-    let mut rng = ChaCha8Rand::with_backend(SAMPLE_SEED, backend);
+    let mut rng = ChaCha8Rand::with_backend_impl(SAMPLE_SEED, backend);
     let u64s = iter::repeat_with(move || rng.read_u64());
     check_byte_output(u64s.flat_map(u64::to_le_bytes));
 }

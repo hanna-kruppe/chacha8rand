@@ -1,11 +1,15 @@
 use crate::{
     common_guts::{eight_rounds, init_state},
-    Buffer,
+    Backend, Buffer,
 };
 use arrayref::array_mut_ref;
 
+pub(crate) fn backend() -> Backend {
+    Backend::new(fill_buf)
+}
+
 #[inline(never)]
-pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     for quad in 0..4 {
         let quad_buf = array_mut_ref![buf, quad * 256, 256];

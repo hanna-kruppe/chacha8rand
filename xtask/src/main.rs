@@ -3,22 +3,26 @@ use xshell::{cmd, Shell};
 
 xflags! {
     cmd xtask {
-        cmd crosstest {}
+        cmd testmatrix {}
         cmd wasmbench {}
     }
 }
 
 fn main() -> xshell::Result<()> {
     match Xtask::from_env_or_exit().subcommand {
-        XtaskCmd::Crosstest(Crosstest {}) => crosstest(),
+        XtaskCmd::Testmatrix(Testmatrix {}) => test_matrix(),
         XtaskCmd::Wasmbench(Wasmbench {}) => bench_in_wasmtime(),
     }
 }
 
 const WASM_RUNNER_ENV: &str = "CARGO_TARGET_WASM32_WASIP1_RUNNER";
 
-fn crosstest() -> xshell::Result<()> {
+fn test_matrix() -> xshell::Result<()> {
     let sh = Shell::new()?;
+
+    // Any combination of features should work and run tests.
+    cmd!(sh, "cargo hack test -p chacha8rand --feature-powerset").run()?;
+
     let targets = [
         "aarch64-unknown-linux-gnu", // for neon
         "i586-unknown-linux-gnu",    // for x86 without sse2 statically enabled
