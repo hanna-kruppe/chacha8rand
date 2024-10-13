@@ -39,7 +39,7 @@ test_backends! {
     ))]
     sse2 => Backend::x86_sse2().expect("this test requires sse2");
     #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-    avx2 => Backend::x86_avx2().expect("this test requires sse2");
+    avx2 => Backend::x86_avx2().expect("this test requires avx2");
     #[cfg(target_arch = "aarch64")]
     neon => Backend::aarch64_neon().expect("this test requires neon");
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
