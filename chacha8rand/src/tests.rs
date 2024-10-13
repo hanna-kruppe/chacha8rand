@@ -109,7 +109,7 @@ fn restore_rejects_excessive_count() {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let bogus_state = ChaCha8State {
         seed: [0xCC; 32],
-        bytes_consumed: u32::MAX,
+        bytes_consumed: u16::MAX,
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
     // Also, the error should be detected before the RNG state is altered:

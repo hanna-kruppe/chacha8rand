@@ -170,7 +170,7 @@ pub struct ChaCha8Rand {
 #[derive(Clone, Copy)]
 pub struct ChaCha8State {
     pub seed: [u8; 32],
-    pub bytes_consumed: u32,
+    pub bytes_consumed: u16,
 }
 
 impl fmt::Debug for ChaCha8State {
@@ -243,12 +243,12 @@ impl ChaCha8Rand {
     }
 
     pub fn clone_state(&self) -> ChaCha8State {
-        // The cast to u32 can't truncate because we never set the field to anything larger than the
+        // The cast to u16 can't truncate because we never set the field to anything larger than the
         // size of the output buffer. But if that does happen, restoring from the resulting state
         // could behave incorrectly. That code path is also careful about it but defense in depth
         // can't hurt, so let's saturate here.
         debug_assert!(self.bytes_consumed <= BUF_OUTPUT_LEN);
-        let bytes_consumed = cmp::min(self.bytes_consumed, BUF_OUTPUT_LEN) as u32;
+        let bytes_consumed = cmp::min(self.bytes_consumed, BUF_OUTPUT_LEN) as u16;
         ChaCha8State {
             seed: seed_to_bytes(&self.seed),
             bytes_consumed,
@@ -256,10 +256,9 @@ impl ChaCha8Rand {
     }
 
     pub fn try_restore_state(&mut self, state: &ChaCha8State) -> Result<(), RestoreStateError> {
-        // We never produce `bytes_consumed` values larger than the output buffer's size. The u32 ->
-        // usize conversion can only fail on 16-bit targets, which are not exactly the target
-        // audience for this crate, but we can easily handle that while we're here.
-        let bytes_consumed = usize::try_from(state.bytes_consumed).unwrap_or(usize::MAX);
+        // We never produce `bytes_consumed` values larger than the output buffer's size, so we
+        // don't accept it either.
+        let bytes_consumed = usize::from(state.bytes_consumed);
         if bytes_consumed > BUF_OUTPUT_LEN {
             return Err(RestoreStateError { _private: () });
         }
