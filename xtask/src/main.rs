@@ -38,6 +38,15 @@ fn crosstest() -> xshell::Result<()> {
         .env("RUSTFLAGS", "")
         .run()?;
     }
+    // x86_64-unknown-none is an x86 target without std, so it can't *run* the tests but it's useful
+    // as a smoke test for no_std support, especially w.r.t. the use of std for feature detection in
+    // the avx2 backend.
+    cmd!(
+        sh,
+        "cargo check --target x86_64-unknown-none -p chacha8rand"
+    )
+    .run()?;
+
     // Test wasm with and without simd128
     for flags in ["", "-Ctarget-feature=+simd128"] {
         cmd!(sh, "cargo test --target wasm32-wasip1")

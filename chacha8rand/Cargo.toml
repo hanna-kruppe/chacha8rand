@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 rand_core_0_6 = ["dep:rand_core"]
+std = []
 
 [dependencies]
 arrayref = "0.3.9"

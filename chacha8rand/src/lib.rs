@@ -77,9 +77,8 @@
 //! * It's tested to work correctly on big endian targets.
 //! * RNG state can be serialized efficiently into 9x4 = 36 bytes.
 //! * Optional implementations for `rand_core` traits behind a Cargo feature flag.
-//! * The crate is `no_std` except when required for runtime feature detection (only x86). Runtime
-//!   detection may become optional (via a Cargo feature) in the future, unless feature detection in
-//!   `core` becomes available first.
+//! * The crate is `no_std` by default. Enabling the `"std"` feature is only necessary for runtime
+//!   feature detection (only applies to AVX2 at the moment).
 //!
 //! The main reasons why you might not want to use this crate are the use of `unsafe` for accessing
 //! SIMD intrinsics and the relatively large buffer (4x larger than the Go implementation). The
@@ -365,9 +364,10 @@ macro_rules! arch_backends {
 }
 
 arch_backends! {
-    // This backend uses dynamic feature detection, so it's only gated on `target_arch` and not on
-    // `target_feature = "avx2"`.
-    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    // This backend uses dynamic feature detection, so it's disabled in no_std mode and only gated
+    // on `target_arch`. In theory it could also be enabled in no_std mode when AVX2 is statically
+    // enabled, but that would probably complicate some unsafe code which seems like a bad trade.
+    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), feature = "std"))]
     mod avx2;
 
     // For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
