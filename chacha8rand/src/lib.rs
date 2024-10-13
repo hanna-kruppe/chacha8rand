@@ -223,7 +223,16 @@ impl Error for RestoreStateError {}
 impl ChaCha8Rand {
     #[inline]
     pub fn new(seed: &[u8; 32]) -> Self {
-        Self::with_backend_impl(seed, Backend::detect_best())
+        // On x86, we prefer AVX2 over SSE2 when both are available. The other SIMD backends aren't
+        // really ordered by preference because they're for mutually exclusive target platforms, but
+        // it's less of a mess to chain them like this than to replicate the `cfg` soup. We only use
+        // the scalar backend if none of the SIMD backends are available.
+        let backend = avx2::detect()
+            .or_else(sse2::detect)
+            .or_else(neon::detect)
+            .or_else(simd128::detect)
+            .unwrap_or_else(scalar::backend);
+        Self::with_backend_impl(seed, backend)
     }
 
     #[cfg(feature = "unstable_internals")]
@@ -397,32 +406,9 @@ arch_backends! {
     mod simd128;
 }
 
-// These impl blocks are here, not in the `backend` mod, to minimize that code that has access to
-// `Backend`'s private fields.
-
-impl Backend {
-    fn detect_best() -> Self {
-        // On x86, we prefer AVX2 where available, otherwise we'll almost always have SSE2 without
-        // runtime detection.
-        if let Some(avx2) = avx2::detect() {
-            return avx2;
-        }
-        if let Some(sse2) = sse2::detect() {
-            return sse2;
-        }
-
-        if let Some(neon) = neon::detect() {
-            return neon;
-        }
-
-        if let Some(simd128) = simd128::detect() {
-            return simd128;
-        }
-
-        scalar::backend()
-    }
-}
-
+// These methods only exist to enable the benchmark (compiled as separate crate) to override backend
+// selection and compare performance. It's not in the `backend` module to minimize that code that
+// has to worry about upholding `Backend`'s invariant.
 #[cfg(feature = "unstable_internals")]
 impl Backend {
     pub fn scalar() -> Self {
