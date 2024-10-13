@@ -25,3 +25,7 @@ unstable_internals = []
 [dependencies]
 arrayref = "0.3.9"
 rand_core = { version = "0.6.4", default-features = false, optional = true }
+
+[package.metadata.docsrs]
+features = ["rand_core_0_6"]
+targets = []
