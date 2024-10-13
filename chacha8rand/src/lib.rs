@@ -116,9 +116,9 @@
 //! As for the non-Cargo meaning of "features", take a look at [`ChaCha8Rand`] to learn more about
 //! these aspects:
 //!
-//! * On several common targets, SIMD instructions are used to improve performance.
 //! * Once the crate reaches 1.0, the output you get from a given seed will not change in minor or
 //!   patch releases.
+//! * On several common targets, SIMD instructions are used to improve performance.
 //! * The generator's state can be serialized into as little as 34 bytes.
 //!
 //! # Drawbacks
@@ -134,6 +134,7 @@
 //! [spec]: https://c2sp.org/chacha8rand
 //! [sts-corr-rand]: https://forgottenarbiter.github.io/Correlated-Randomness/
 #![forbid(unsafe_op_in_unsafe_fn)]
+#![warn(missing_docs)]
 #![no_std]
 use core::{array, cmp, error::Error, fmt};
 
@@ -161,7 +162,10 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 /// you'll only find excessive extra details about reproducibility and some notes about
 /// (de-)serialization and SIMD backends.
 ///
-/// # Reproducibility
+/// This type implements traits from the rand crate (`RngCore` and `SeedableRng`), but you need to
+/// [opt-in with a feature flag][crate-features] to use those impls.
+///
+/// # <a name="repro-details"></a> Reproducibility
 ///
 /// Until I release version 1.0 of this crate, I reserve the right to fix divergences from the
 /// [ChaCha8Rand specification][spec] or tweak behavior not covered by the spec. Afterwards, **the
@@ -229,6 +233,7 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 /// sets and more runtime feature detection may be added in the future.
 ///
 /// [aarch64be-neon]: https://github.com/rust-lang/stdarch/issues/1484
+/// [crate-features]: ./index.html#crate-features
 /// [spec]: https://c2sp.org/chacha8rand
 #[derive(Clone)]
 pub struct ChaCha8Rand {
@@ -281,7 +286,7 @@ impl fmt::Debug for ChaCha8Rand {
 /// same effect as taking a snapshot of its state, but the generator is much larger because it
 /// includes a big buffer of output that could be regenerated on demand from a snapshot.
 ///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// # use chacha8rand::ChaCha8Rand;
@@ -293,7 +298,9 @@ impl fmt::Debug for ChaCha8Rand {
 /// ```
 #[derive(Clone, Copy)]
 pub struct ChaCha8State {
+    /// The seed of the current ChaCha8Rand iteration.
     pub seed: [u8; 32],
+    /// How much output from the current ChaCha8Rand iteration was already consumed.
     pub bytes_consumed: u16,
 }
 
@@ -324,6 +331,7 @@ impl Buffer {
     }
 }
 
+/// Error returned from [`ChaCha8Rand::try_restore_state`] for corrupted snapshots.
 pub struct RestoreStateError {
     _private: (),
 }
@@ -350,7 +358,7 @@ impl ChaCha8Rand {
     /// over-complicate your program to avoid that, but keep it in mind if in case it's easy to
     /// avoid.
     ///
-    /// ## Examples
+    /// # Examples
     ///
     /// Reproducing the sample output from [the ChaCha8Rand specification]:
     ///
@@ -379,6 +387,10 @@ impl ChaCha8Rand {
     }
 
     #[cfg(feature = "unstable_internals")]
+    #[allow(
+        missing_docs,
+        reason = "internal API only exposed unstably for benchmarks"
+    )]
     #[inline]
     pub fn with_backend(seed: &[u8; 32], backend: Backend) -> Self {
         Self::with_backend_impl(seed, backend)
@@ -427,55 +439,87 @@ impl ChaCha8Rand {
         self.bytes_consumed = 0;
     }
 
-    /// Take a snapshot of the generator's current state.
+    /// Consume four bytes of uniformly random data and return them as `u32`.
     ///
-    /// See [`ChaCha8State`] for more details and an example.
-    pub fn clone_state(&self) -> ChaCha8State {
-        // The cast to u16 can't truncate because we never set the field to anything larger than the
-        // size of the output buffer. But if that does happen, restoring from the resulting state
-        // could behave incorrectly. That code path is also careful about it but defense in depth
-        // can't hurt, so let's saturate here.
-        debug_assert!(self.bytes_consumed <= BUF_OUTPUT_LEN);
-        let bytes_consumed = cmp::min(self.bytes_consumed, BUF_OUTPUT_LEN) as u16;
-        ChaCha8State {
-            seed: seed_to_bytes(&self.seed),
-            bytes_consumed,
-        }
-    }
-
-    /// Restore the generator's state from a snapshot taken before.
+    /// If you need a uniformly random integer in a range `0..(1 << k)` for some k < 32, you can
+    /// take the bottom k bits (or any other subset of bits you want, they're all equally random).
+    /// However, for numbers in a non-power-of-two range, you should *not* use the remainder
+    /// operator `%` because that would lead to some outcomes being more common than others. The
+    /// `rand` crate supports this directly, and you can use it with ChaCha8Rand by [activating the
+    /// crate feature for it][rand-feature].
     ///
-    /// See the documentation of [`ChaCha8State`] for more details and an example.
+    /// For [reproducibility](#repro-details), keep in mind that mixing different read granularities
+    /// can skip some output bytes.
     ///
-    /// ## Errors
+    /// # Examples
     ///
-    /// This function never fails if `state` came from [`ChaCha8Rand::clone_state`] and was not
-    /// modified. Otherwise (e.g., if you deserialize it from a file that someone fiddled with), it
-    /// may fail because the `bytes_consumed` field is out of range. This field refers to a single
-    /// iteration of ChaCha8Rand, which always produces 992 bytes of output. Thus, valid values are
-    /// in the range `0..=992`.
-    pub fn try_restore_state(&mut self, state: &ChaCha8State) -> Result<(), RestoreStateError> {
-        // We never produce `bytes_consumed` values larger than the output buffer's size, so we
-        // don't accept it either.
-        let bytes_consumed = usize::from(state.bytes_consumed);
-        if bytes_consumed > BUF_OUTPUT_LEN {
-            return Err(RestoreStateError { _private: () });
-        }
-
-        // We can just use `set_seed` to fill the buffer and then skip the parts of that chunk that
-        // were marked as already consumed by adjusting our position in the refilled buffer.
-        self.set_seed(&state.seed);
-        self.bytes_consumed = bytes_consumed;
-        Ok(())
-    }
-
-    #[inline]
-    fn refill(&mut self) {
-        self.seed = seed_from_bytes(self.buf.new_key());
-        self.backend.refill(&self.seed, &mut self.buf);
-        self.bytes_consumed = 0;
-    }
-
+    /// If you want a smaller number of bits, you can cast to a smaller integer type and/or mask off
+    /// the excess bits:
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// # let mut rng = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
+    /// let ascii = (rng.read_u32() & 0x7F) as u8;
+    /// println!("Your lucky ASCII character for the day is: {ascii:?}");
+    /// ```
+    ///
+    /// However, choosing between a number of options that isn't a power of two is more difficult.
+    /// Simply taking the remainder introduces bias. This is easier to see when you try all the
+    /// possibilities with a smaller number of bits than 32, e.g., with five bits and three options:
+    ///
+    /// ```
+    /// let mut remainder_histogram = [0, 0, 0];
+    /// for five_bit_number in 0..(1 << 5) {
+    ///     remainder_histogram[five_bit_number % 3] += 1;
+    /// }
+    /// // A remainder of 2 occurs less often than the others!
+    /// assert_eq!(remainder_histogram, [11, 11, 10]);
+    /// ```
+    ///
+    /// More fully featured libraries like `rand` implement sampling algorithms that avoid this
+    /// problem. They're also usually more efficient than computing the remainder, which is a
+    /// relatively expensive operation even on modern CPUs.
+    ///
+    /// At other times, 32 bits is exactly what you need. For example, [tabulation hasing][tab-hash]
+    /// with 32 bit output needs a table of random 32 bit integers. To hash a 64 bit value this way,
+    /// we could split it into 16 pieces of 4 bits each and use a table of 16 x 2^4 random `u32`s:
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// struct U64Hasher {
+    ///     table: [[u32; 16]; 16],
+    /// }
+    ///
+    /// impl U64Hasher {
+    ///     fn new(rng: &mut ChaCha8Rand) -> Self {
+    ///         let mut table = [[0; 16]; 16];
+    ///         for row in &mut table {
+    ///             for cell in row {
+    ///                 *cell = rng.read_u32();
+    ///             }
+    ///         }
+    ///         Self { table }
+    ///     }
+    ///
+    ///     fn hash(&self, mut value: u64) -> u32 {
+    ///         let mut hash = 0;
+    ///         for row in &self.table {
+    ///             hash ^= row[(value & 0xF) as usize];
+    ///             value >>= 4;
+    ///         }
+    ///         debug_assert_eq!(value, 0);
+    ///         hash
+    ///     }
+    /// }
+    ///
+    /// # let seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+    /// let mut rng = ChaCha8Rand::new(&seed);
+    /// let hasher = U64Hasher::new(&mut rng);
+    /// assert_ne!(hasher.hash(1 << 32), hasher.hash(1 << 36));
+    /// ```
+    ///
+    /// [tab-hash]: https://en.wikipedia.org/wiki/Tabulation_hashing
+    /// [rand-feature]: ./index.html#crate-features
     #[inline]
     pub fn read_u32(&mut self) -> u32 {
         const N: usize = size_of::<u32>();
@@ -493,6 +537,72 @@ impl ChaCha8Rand {
         u32::from_le_bytes(bytes)
     }
 
+    /// Consume eight bytes of uniformly random data and return them as `u64`.
+    ///
+    /// As with [the 32-bit variant][`ChaCha8Rand::read_u32`]:
+    ///
+    /// * You can use a subset of the bits if you don't need 64 of them.
+    /// * Don't use modulo to map it into a non-power-of-two ranges, the result isn't uniformly
+    ///   distributed.
+    /// * For [reproducibility](#repro-details), keep in mind that mixing different read
+    ///   granularities can skip some output bytes.
+    ///
+    /// # Examples
+    ///
+    /// With 64 bits, we can generate a 8x8 bitmap and render it as ASCII art. Clearly that's much
+    /// better than a smaller (and non-square) bitmap with only 32 "pixels".
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// # let seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+    /// let mut rng = ChaCha8Rand::new(&seed);
+    /// let mut bitmap = rng.read_u64();
+    /// for _row in 0..8 {
+    ///     for _column in 0..8 {
+    ///         let pixel = ['X', '.'][(bitmap & 1) as usize];
+    ///         print!("{pixel}");
+    ///         bitmap >>= 1;
+    ///     }
+    ///     println!();
+    /// }
+    /// ```
+    ///
+    /// A more computer science-minded example would be [strongly universal hashing][univ-hash] of
+    /// 32-bit integers into 32 or fewer bits. The strongly universal multiply-shift scheme by
+    /// Dietzfelbinger needs two random, independent 64-bit parameters `a` and `b`:
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// # use std::num::NonZero;
+    /// struct MulAddShift {
+    ///     a: u64,
+    ///     b: u64,
+    /// }
+    ///
+    /// impl MulAddShift {
+    ///     fn hash(&self, x: u32) -> u32 {
+    ///         (u64::from(x).wrapping_mul(self.a).wrapping_add(self.b) >> 32) as u32
+    ///     }
+    /// }
+    ///
+    /// let mut rng = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
+    /// let h = MulAddShift {
+    ///     a: rng.read_u64(),
+    ///     b: rng.read_u64()
+    /// };
+    /// // Truncating the outputs to two bits also gives a strongly universal family.
+    /// // Strong universality implies uniformity - all hash values are equally likely.
+    /// assert_eq!(h.hash(0) % 4, 2);
+    /// assert_eq!(h.hash(1) % 4, 0);
+    /// assert_eq!(h.hash(2) % 4, 3);
+    /// assert_eq!(h.hash(3) % 4, 1);
+    /// ```
+    ///
+    /// It's just a happy coincidence that we got every two-bit output exactly once in this small
+    /// example, with this exact seed and these exact inputs. To be honest, I was a bit surprised
+    /// that it worked out so perfectly.
+    ///
+    /// [univ-hash]: https://en.wikipedia.org/wiki/Universal_hashing
     #[inline]
     pub fn read_u64(&mut self) -> u64 {
         const N: usize = size_of::<u64>();
@@ -528,6 +638,55 @@ impl ChaCha8Rand {
         let mut seed = [0; 32];
         self.read_bytes(&mut seed);
         seed
+    }
+
+    /// Take a snapshot of the generator's current state.
+    ///
+    /// See [`ChaCha8State`] for more details and an example.
+    pub fn clone_state(&self) -> ChaCha8State {
+        // The cast to u16 can't truncate because we never set the field to anything larger than the
+        // size of the output buffer. But if that does happen, restoring from the resulting state
+        // could behave incorrectly. That code path is also careful about it but defense in depth
+        // can't hurt, so let's saturate here.
+        debug_assert!(self.bytes_consumed <= BUF_OUTPUT_LEN);
+        let bytes_consumed = cmp::min(self.bytes_consumed, BUF_OUTPUT_LEN) as u16;
+        ChaCha8State {
+            seed: seed_to_bytes(&self.seed),
+            bytes_consumed,
+        }
+    }
+
+    /// Restore the generator's state from a snapshot taken before.
+    ///
+    /// See the documentation of [`ChaCha8State`] for more details and an example.
+    ///
+    /// # Errors
+    ///
+    /// This function never fails if `state` came from [`ChaCha8Rand::clone_state`] and was not
+    /// modified. Otherwise (e.g., if you deserialize it from a file that someone fiddled with), it
+    /// may fail because the `bytes_consumed` field is out of range. This field refers to a single
+    /// iteration of ChaCha8Rand, which always produces 992 bytes of output. Thus, valid values are
+    /// in the range `0..=992`.
+    pub fn try_restore_state(&mut self, state: &ChaCha8State) -> Result<(), RestoreStateError> {
+        // We never produce `bytes_consumed` values larger than the output buffer's size, so we
+        // don't accept it either.
+        let bytes_consumed = usize::from(state.bytes_consumed);
+        if bytes_consumed > BUF_OUTPUT_LEN {
+            return Err(RestoreStateError { _private: () });
+        }
+
+        // We can just use `set_seed` to fill the buffer and then skip the parts of that chunk that
+        // were marked as already consumed by adjusting our position in the refilled buffer.
+        self.set_seed(&state.seed);
+        self.bytes_consumed = bytes_consumed;
+        Ok(())
+    }
+
+    #[inline]
+    fn refill(&mut self) {
+        self.seed = seed_from_bytes(self.buf.new_key());
+        self.backend.refill(&self.seed, &mut self.buf);
+        self.bytes_consumed = 0;
     }
 }
 
@@ -591,6 +750,10 @@ arch_backends! {
 // selection and compare performance. It's not in the `backend` module to minimize that code that
 // has to worry about upholding `Backend`'s invariant.
 #[cfg(feature = "unstable_internals")]
+#[allow(
+    missing_docs,
+    reason = "internal APIs only exposed unstably for benchmarks"
+)]
 impl Backend {
     pub fn scalar() -> Self {
         scalar::backend()

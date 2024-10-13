@@ -6,6 +6,10 @@ use crate::Buffer;
 //
 // (The latter case is the whole reason why it's an `unsafe` fn to begin with.)
 #[derive(Clone, Copy)]
+#[allow(
+    missing_docs,
+    reason = "internal API only exposed unstably for benchmarks"
+)]
 pub struct Backend {
     refill_impl: unsafe fn(&[u32; 8], &mut Buffer),
 }
