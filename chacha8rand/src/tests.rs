@@ -96,7 +96,7 @@ fn check_save_restore_at(u32s_before_save_restore: u32) {
 fn restore_rejects_slighty_too_large_count() {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let bogus_state = ChaCha8State {
-        seed: [0xdead; 8],
+        seed: [0xCC; 32],
         bytes_consumed: 993,
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
@@ -108,7 +108,7 @@ fn restore_rejects_slighty_too_large_count() {
 fn restore_rejects_excessive_count() {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let bogus_state = ChaCha8State {
-        seed: [0xdead; 8],
+        seed: [0xCC; 32],
         bytes_consumed: u32::MAX,
     };
     assert!(rng.try_restore_state(&bogus_state).is_err());
@@ -220,21 +220,21 @@ mod rand06 {
 
     #[test]
     fn next_u32() {
-        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
         let u32s = iter::repeat_with(|| RngCore::next_u32(&mut rng));
         check_byte_output(u32s.flat_map(u32::to_le_bytes));
     }
 
     #[test]
     fn next_u64() {
-        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
         let u64s = iter::repeat_with(|| RngCore::next_u64(&mut rng));
         check_byte_output(u64s.flat_map(u64::to_le_bytes));
     }
 
     #[test]
     fn fill_bytes() {
-        let mut rng = ChaCha8Rand::from_seed(SAMPLE_SEED);
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
         let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
         rng.fill_bytes(&mut bytes);
         check_byte_output(bytes.iter().copied());
@@ -254,7 +254,7 @@ fn check_byte_output(output: impl IntoIterator<Item = u8>) {
     assert_eq!(i, SAMPLE_OUTPUT_U64LE.len() * 8, "output ended prematurely");
 }
 
-pub const SAMPLE_SEED: [u8; 32] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+pub const SAMPLE_SEED: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
 
 #[rustfmt::skip]
 const SAMPLE_OUTPUT_U64LE: &[u64] = &[

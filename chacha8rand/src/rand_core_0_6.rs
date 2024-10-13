@@ -30,6 +30,6 @@ impl SeedableRng for ChaCha8Rand {
 
     #[inline]
     fn from_seed(seed: [u8; 32]) -> Self {
-        Self::new(seed)
+        Self::new(&seed)
     }
 }

@@ -169,7 +169,7 @@ pub struct ChaCha8Rand {
 
 #[derive(Clone, Copy)]
 pub struct ChaCha8State {
-    pub seed: [u32; 8],
+    pub seed: [u8; 32],
     pub bytes_consumed: u32,
 }
 
@@ -200,38 +200,6 @@ impl Buffer {
     }
 }
 
-pub struct Seed(pub [u32; 8]);
-
-impl From<[u32; 8]> for Seed {
-    #[inline]
-    fn from(words: [u32; 8]) -> Self {
-        Self(words)
-    }
-}
-
-impl From<[u8; 32]> for Seed {
-    #[inline]
-    fn from(bytes: [u8; 32]) -> Self {
-        Self(array::from_fn(|i| {
-            u32::from_le_bytes(*array_ref![bytes, 4 * i, 4])
-        }))
-    }
-}
-
-impl From<&[u8; 32]> for Seed {
-    #[inline]
-    fn from(bytes: &[u8; 32]) -> Self {
-        Self::from(*bytes)
-    }
-}
-
-impl From<&[u32; 8]> for Seed {
-    #[inline]
-    fn from(words: &[u32; 8]) -> Self {
-        Self(*words)
-    }
-}
-
 pub struct RestoreStateError {
     _private: (),
 }
@@ -251,37 +219,26 @@ impl fmt::Display for RestoreStateError {
 impl Error for RestoreStateError {}
 
 impl ChaCha8Rand {
-    pub fn new(seed: impl Into<Seed>) -> Self {
-        fn inner(seed: &Seed) -> ChaCha8Rand {
-            ChaCha8Rand::with_backend_mono(seed, Backend::detect_best())
-        }
-        inner(&seed.into())
+    pub fn new(seed: &[u8; 32]) -> Self {
+        ChaCha8Rand::with_backend(seed, Backend::detect_best())
     }
 
-    pub fn with_backend(seed: impl Into<Seed>, backend: Backend) -> Self {
-        Self::with_backend_mono(&seed.into(), backend)
-    }
-
-    fn with_backend_mono(seed: &Seed, backend: Backend) -> ChaCha8Rand {
+    pub fn with_backend(seed: &[u8; 32], backend: Backend) -> Self {
         let mut this = ChaCha8Rand {
             seed: [0; 8],
             bytes_consumed: 0,
             buf: Buffer { bytes: [0; 1024] },
             backend,
         };
-        this.set_seed_mono(seed);
+        this.set_seed(seed);
         this
     }
 
-    pub fn set_seed(&mut self, seed: impl Into<Seed>) {
-        self.set_seed_mono(&seed.into())
-    }
-
-    fn set_seed_mono(self: &mut ChaCha8Rand, seed: &Seed) {
+    pub fn set_seed(self: &mut ChaCha8Rand, seed: &[u8; 32]) {
+        self.seed = seed_from_bytes(seed);
         // Fill the buffer immediately because we want the next bytes of output to come directly
         // from the new seed, not from the old seed or from the seed *after* `seed`.
-        self.backend.refill(&seed.0, &mut self.buf);
-        self.seed = seed.0;
+        self.backend.refill(&self.seed, &mut self.buf);
         self.bytes_consumed = 0;
     }
 
@@ -293,7 +250,7 @@ impl ChaCha8Rand {
         debug_assert!(self.bytes_consumed <= BUF_OUTPUT_LEN);
         let bytes_consumed = cmp::min(self.bytes_consumed, BUF_OUTPUT_LEN) as u32;
         ChaCha8State {
-            seed: self.seed,
+            seed: seed_to_bytes(&self.seed),
             bytes_consumed,
         }
     }
@@ -309,14 +266,14 @@ impl ChaCha8Rand {
 
         // We can just use `set_seed` to fill the buffer and then skip the parts of that chunk that
         // were marked as already consumed by adjusting our position in the refilled buffer.
-        self.set_seed(state.seed);
+        self.set_seed(&state.seed);
         self.bytes_consumed = bytes_consumed;
         Ok(())
     }
 
     #[inline]
     fn refill(&mut self) {
-        self.seed = Seed::from(self.buf.new_key()).0;
+        self.seed = seed_from_bytes(self.buf.new_key());
         self.backend.refill(&self.seed, &mut self.buf);
         self.bytes_consumed = 0;
     }
@@ -368,6 +325,18 @@ impl ChaCha8Rand {
         }
         debug_assert!(total_bytes_read == dest.len());
     }
+}
+
+fn seed_from_bytes(bytes: &[u8; 32]) -> [u32; 8] {
+    array::from_fn(|i| u32::from_le_bytes(*array_ref![bytes, 4 * i, 4]))
+}
+
+fn seed_to_bytes(seed: &[u32; 8]) -> [u8; 32] {
+    let mut bytes = [0; 32];
+    for (i, word) in seed.iter().enumerate() {
+        bytes[4 * i..][..4].copy_from_slice(&word.to_le_bytes());
+    }
+    bytes
 }
 
 impl fmt::Debug for ChaCha8Rand {
