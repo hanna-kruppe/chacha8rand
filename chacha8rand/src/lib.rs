@@ -206,12 +206,12 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 ///
 /// # Serialization and Deserialization
 ///
-/// Besides storing the initial seed, you can also store the state of the generator at any point in
-/// time with [`ChaCha8Rand::clone_state`] and [`ChaCha8Rand::try_restore_state`]. See those methods
-/// for more details. The important thing with respect to reproducibility is that the serialized
-/// state records an exact position in the output byte stream. Thus, if you save the state at any
-/// point and later restore it, you'll get the same output as if you had kept working with the
-/// original generator, regardless of how how you read from it before and after.
+/// Besides storing the initial seed, you can also snapshot state of the generator at any point in
+/// time with [`ChaCha8Rand::clone_state`] and [`ChaCha8Rand::try_restore_state`]. See
+/// [`ChaCha8State`] for more details. The important thing with respect to reproducibility is that
+/// the serialized state records an exact position in the output byte stream. Thus, if you save the
+/// state at any point and later restore it, you'll get the same output as if you had kept working
+/// with the original generator, regardless of how how you read from it before and after.
 ///
 /// # SIMD Backends
 ///
@@ -250,6 +250,38 @@ impl fmt::Debug for ChaCha8Rand {
     }
 }
 
+/// Snapshot of the state of a [`ChaCha8Rand`] instance.
+///
+/// Created with [`ChaCha8Rand::clone_state`] and used by [`ChaCha8Rand::try_restore_state`].
+/// Possible use cases include:
+///
+/// * Serializing it to disk to suspend and later resume a computation without having the timing of
+///   suspend/resume affect the result.
+/// * Rewinding to an earlier state for save/restore functionality in a game.
+/// * Forking a randomized algorithm, running two versions that get the same randomness but differ
+///   in some other way, to see how they diverge.
+///
+/// There are no `serde` impls. Instead, the fields are public so you can (de-)serialize them in any
+/// way you see fit. Note that not every `u16` value is a valid value for `bytes_consumed`, so
+/// restoring can fail.
+///
+/// There is nothing preventing you from constructing a [`ChaCha8State`] out of thin air (rather
+/// than cloning from an existing generator), but you probably shouldn't do that. You can supply a
+/// new seed directly with [`ChaCha8Rand::new`] or [`ChaCha8Rand::set_seed`]. Fiddling with
+/// `bytes_consumed` isn't significantly more efficient than reading that many bytes from the
+/// generator and throwing them away.
+///
+/// ## Examples
+///
+/// ```
+/// # use chacha8rand::ChaCha8Rand;
+/// # let seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+/// let mut rng = ChaCha8Rand::new(&seed);
+/// let state = rng.clone_state();
+/// let first_output = rng.read_u64();
+/// rng.try_restore_state(&state).expect("snapshot is valid because it was not modified");
+/// assert_eq!(rng.read_u64(), first_output);
+/// ```
 #[derive(Clone, Copy)]
 pub struct ChaCha8State {
     pub seed: [u8; 32],
@@ -302,6 +334,26 @@ impl fmt::Display for RestoreStateError {
 impl Error for RestoreStateError {}
 
 impl ChaCha8Rand {
+    /// Create a new generator from the given seed.
+    ///
+    /// This will eagerly generates data to fill the generator's internal buffer. Therefore, it may
+    /// be a bit wasteful to call if you won't actually need any output from the generator. Don't
+    /// over-complicate your program to avoid that, but keep it in mind if in case it's easy to
+    /// avoid.
+    ///
+    /// ## Examples
+    ///
+    /// Reproducing the sample output from [the ChaCha8Rand specification]:
+    ///
+    /// ```
+    /// let mut sample = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
+    /// assert_eq!(sample.read_u64(), 0xb773b6063d4616a5);
+    /// assert_eq!(sample.read_u64(), 0x1160af22a66abc3c);
+    /// assert_eq!(sample.read_u64(), 0x8c2599d9418d287c);
+    /// // ... and so on
+    /// ```
+    ///
+    /// [spec]: https://c2sp.org/chacha8rand
     #[inline]
     pub fn new(seed: &[u8; 32]) -> Self {
         // On x86, we prefer AVX2 over SSE2 when both are available. The other SIMD backends aren't
@@ -333,6 +385,30 @@ impl ChaCha8Rand {
         this
     }
 
+    /// Reset this generator, as if overwriting it with `ChaCha8Rand::new(seed)`.
+    ///
+    /// The only reason this exists is because it's more convenient sometimes and might avoid
+    /// copying a relatively large type from one location to another.
+    ///
+    /// # Examples
+    ///
+    /// Restoring the original seed after a simulation to reproduce it:
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// # let initial_seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+    /// fn run_simulation(rng: &mut ChaCha8Rand) -> String {
+    ///     // TODO: figure out the details
+    ///     format!("the meaning of life is {}", rng.read_u64())
+    /// }
+    ///
+    /// let mut rng = ChaCha8Rand::new(&initial_seed);
+    /// let result = run_simulation(&mut rng);
+    /// println!("Simulation says {result} - let's try to replicate that");
+    /// rng.set_seed(&initial_seed);
+    /// let result_again = run_simulation(&mut rng);
+    /// assert_eq!(result, result_again);
+    /// ```
     pub fn set_seed(self: &mut ChaCha8Rand, seed: &[u8; 32]) {
         self.seed = seed_from_bytes(seed);
         // Fill the buffer immediately because we want the next bytes of output to come directly
@@ -341,6 +417,9 @@ impl ChaCha8Rand {
         self.bytes_consumed = 0;
     }
 
+    /// Take a snapshot of the generator's current state.
+    ///
+    /// See [`ChaCha8State`] for more details and an example.
     pub fn clone_state(&self) -> ChaCha8State {
         // The cast to u16 can't truncate because we never set the field to anything larger than the
         // size of the output buffer. But if that does happen, restoring from the resulting state
@@ -354,6 +433,17 @@ impl ChaCha8Rand {
         }
     }
 
+    /// Restore the generator's state from a snapshot taken before.
+    ///
+    /// See the documentation of [`ChaCha8State`] for more details and an example.
+    ///
+    /// ## Errors
+    ///
+    /// This function never fails if `state` came from [`ChaCha8Rand::clone_state`] and was not
+    /// modified. Otherwise (e.g., if you deserialize it from a file that someone fiddled with), it
+    /// may fail because the `bytes_consumed` field is out of range. This field refers to a single
+    /// iteration of ChaCha8Rand, which always produces 992 bytes of output. Thus, valid values are
+    /// in the range `0..=992`.
     pub fn try_restore_state(&mut self, state: &ChaCha8State) -> Result<(), RestoreStateError> {
         // We never produce `bytes_consumed` values larger than the output buffer's size, so we
         // don't accept it either.
