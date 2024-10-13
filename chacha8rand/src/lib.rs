@@ -1,84 +1,124 @@
-//! High-quality non-cryptographic randomness with a specification and good performance.
+//! Reproducible, robust and (last but not least) fast pseudorandomness.
 //!
-//! This crate implements the ChaCha8Rand algorithm, first designed for Go 1.22's
-//! [`math/rand/v2`][go-blog]. It also has a [self-contained specification][spec] with sample
-//! outputs.
+//! This crate implements the [chacha8rand][spec] specification, originally designed for Go's
+//! `math/rand/v2` package. The language-independent specification and test vector helps with
+//! long-term reproducibility and interoperability. Building on the ChaCha8 stream cipher ensures
+//! high statistical quality and removes entire classes of "you're holding it wrong"-style problems
+//! that lead to sub-par output. It's also carefully designed and implemented (using SIMD
+//! instructions when available) to be so fast that it shouldn't ever be a bottleneck. However, it
+//! [should not be used for cryptography](#no-crypto).
 //!
-//! TODO: more blurb, introductory example
+//! # Quick Start
 //!
-//! # Why ChaCha8Rand?
+//! In the interest of simplicity and reproducibility, there's no global or thread-local generator.
+//! You'll always have to pick a 32-byte seed yourself, create a [`ChaCha8Rand`] instance from it,
+//! and pass it around in your program. Usually, you'll generate an unpredictable seed at startup by
+//! default, but store or log it somewhere and support running the program again with the same seed.
+//! For the first half, it's usually best to provide a full 256 bits of entropy via the
+//! [`getrandom`][getrandom] crate:
 //!
-//! There are countless other random number generators. Like most of them, ChaCha8Rand promises high
-//! quality output and good performance. In addition, it has two less common features. First, it has
-//! a language-independent specification and test vectors, which supports long-term reproducibility.
-//! Second, being built on top of a well-regarded cryptographic primitive means there is less doubt
-//! and fewer caveats about its quality and robustness compared to generators that were not designed
-//! to survive serious cryptanalysis.
+//! ```
+//! # use chacha8rand::ChaCha8Rand;
+//! let mut seed = [0; 32];
+//! getrandom::getrandom(&mut seed).expect("getrandom failure is 'highly unlikely'");
+//! let mut rng = ChaCha8Rand::new(&seed);
+//! // Now we can make random choices
+//! let heads_or_tails = if rng.read_u32() & 1 == 0 { "heads" } else { "tails" };
+//! println!("The coin came up {heads_or_tails}.");
+//! ```
 //!
-//! Thus, ChaCha8Rand may be a good choice if:
+//! The best place and format to store the seed will vary, but 64 hex digits is a good default
+//! because it can be copied and pasted as (technically) human-readable text. However, if you want
+//! to let humans *pick a seed by hand* for any reason, then asking them for exactly 64 hex digits
+//! would be a bit rude. For such cases, it's more convenient to accept an UTF-8 string and feed it
+//! into a hash function with 256 bit output, such as SHA-256 or Blake3.
 //!
-//! 1. You need good statistical randomness with seeding, and want the relationship between the seed
-//!    and the generated output to be stable in the long term and independent of a particular
-//!    library's quirks.
-//! 2. You want to do cute tricks like having a tree of RNGs where parents generate the seeds for
-//!    their children, or generating multiple random seeds and expecting the output streams to be
-//!    independent of each other. Most statistical generators either aren't designed to support such
-//!    use cases at all, or only try to support specific usage patterns, so there's a risk of
-//!    "holding it wrong" and getting output of sub-par quality.
-//! 3. You've seen one too many "fast, high quality" generators turning out to be flawed. You would
-//!    prefer the greater assurance of a cryptographically secure random number generator, but you
-//!    actually need reproducibility from a seed and/or you're a little worried about the OS entropy
-//!    source being a little slow or quirky on some machines your program may run on.
+//! In any case, once you've created a [`ChaCha8Rand`] instance with an initial seed, you can
+//! consume its output as a sequence of bytes or as stream of 32-bit or 64-bit integers. If you need
+//! support for other types, for integers in a certain interval, or other distributions, you might
+//! want to enable the [crate feature](#crate-features) to combine [`ChaCha8Rand`] with the `rand`
+//! crate. Another thing you can do (even without `rand`) is deriving seeds for multiple sub-RNGs
+//! that are used for different purposes, without creating correlation between those different
+//! streams of randomness (e.g., for [roguelike games][sts-corr-rand]). The ability to do this is
+//! one reason why I wrote this crate, and there's a convenience method for it:
 //!
-//! ChaCha8Rand should not be used for cryptographic purposes (see below for reasons) but can
-//! otherwise be used in a black-box fashion: seed goes in, unlimited randomness comes out. The
-//! state space is so large that generating many seeds uniformly at random has negligible risk of
-//! identical or overlapping output sequences. If there were any issues with the statistical quality
-//! of its output, or if the output sequences for different seeds (with some known relation between
-//! them) were not statistically independent, that would most likely imply a major breakthrough in
-//! the cryptanalysis of ChaCha20 as a stream cipher. Since the eight-round variant has survived
-//! significant cryptanalysis, it's probably safe to assume that there are no serious flaws waiting
-//! to be discovered that would be relevant for non-cryptographic randomness.
+//! ```
+//! # use chacha8rand::ChaCha8Rand;
+//! # let initial_seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+//! let mut seed_gen = ChaCha8Rand::new(&initial_seed);
+//! // Create new instances with seeds from `seed_gen`...
+//! let mut rng1 = ChaCha8Rand::new(&seed_gen.read_seed());
+//! let mut rng2 = ChaCha8Rand::new(&seed_gen.read_seed());
+//! assert_ne!(rng1.read_u64(), rng2.read_u64(), "if this fails you're _very_ unlucky");
+//! // ... and/or re-seed an existing instance in-place:
+//! rng1.set_seed(&seed_gen.read_seed());
+//! ```
 //!
-//! # Don't Use This For Cryptography
+//! Note that using the output of a statistical RNG to seed other instances of the same algorithm
+//! (or a related one) is often risky or outright broken. Even generators that explicitly support
+//! it, like SplitMix, often distinguish "generate a new seed" from ordinary random output.
+//! ChaCha8Rand has no such caveats: its state space is so large, and its output is of such high
+//! quality, that there's no risk of creating overlapping output sequences or correlations between
+//! generators seeded this way. Indeed, every instance regularly replaces its current seed with some
+//! of its own output. Using the rest of the output as seeds for other instances works just as well.
 //!
-//! Although the algorithm uses a stream cipher as building block, it is not a replacement for
-//! cryptographically secure randomness from the operating system or crypto libraries that wrap it.
-//! As Russ Cox and Filippo Valsorda put it [when introducing the algorithm][go-blog]:
+//! # <a name="no-crypto"></a> Don't Use This For Cryptography
 //!
-//! > It’s still better to use crypto/rand, because the operating system kernel can do a better job
-//! > keeping the random values secret from various kinds of prying eyes, the kernel is continually
-//! > adding new entropy to its generator, and the kernel has had more scrutiny. But accidentally
-//! > using math/rand is no longer a security catastrophe.
+//! ChaCha8Rand derives its high quality from eight-round ChaCha20, which is a secure stream cipher
+//! as far as anyone knows today (but in most cases you also want ciphertext authenticity, i.e., an
+//! AEAD mode). Thus, ChaCha8Rand can mostly be used as a black-box source of high quality
+//! pseudorandomness. If there were any patterns or biases in its output, or if the output sequences
+//! for different seeds (with some known relation between them) were not statistically independent,
+//! that would most likely imply a major breakthrough in the cryptanalysis of ChaCha20. However,
+//! that doesn't mean this crate is a replacement for cryptographically secure randomness from the
+//! operating system or libraries that wrap it, such as [`getrandom`][getrandom].
 //!
-//! In addition, this crate makes design decisions not conductive to security:
+//! As Russ Cox and Filippo Valsorda wrote [while introducing the algorithm][go-blog], regarding
+//! accidental use of Go's `math/rand` to generate cryptographic keys and other secrets:
 //!
-//! * It generates output in relatively large batches, and does not scrub data from the buffer
-//!   immediately after it is consumed.
-//! * It has no APIs for seeding directly from OS-provided entropy, deterministic seeding is the
-//!   path of least resistance.
-//! * It supports copying and (de-)serialization of the RNG state, which is a big footgun in
-//!   cryptographic applications. Also, it does not implement fast key erasure, instead keeping the
-//!   last key around longer to support more compact state serialization.
-//! * It contains some unsafe code for accessing `core::arch` intrinsics, including some extra
-//!   complications for runtime feature detection, and none of this has been audited or reviewed.
-//!   I've tried to follow best practices w.r.t. encapsulating and justifying every unsafe
-//!   operation, and Miri has no issue with the tests that it can run. Still, a security-minded
-//!   project should demand more scrutiny or prefer an implementation with less `unsafe`.
+//! > Using Go 1.20, that mistake is a serious security problem that merits a detailed investigation
+//! > to understand the damage. [...] Using Go 1.22, that mistake is just a mistake. It’s still
+//! > better to use crypto/rand, because the operating system kernel can do a better job keeping the
+//! > random values secret from various kinds of prying eyes, the kernel is continually adding new
+//! > entropy to its generator, and the kernel has had more scrutiny. But accidentally using
+//! > math/rand is no longer a security catastrophe.
 //!
-//! # Features and Drawbacks
+//! Keep in mind that Go has a global generator which is seeded from OS-provided entropy on startup.
+//! If you pick a seed yourself (which you always do when using this crate), the output of the
+//! generator is at best as unpredictable as that seed was. There are also other design decisions in
+//! this implementations that would be inappropriate for security-sensitive applications. For
+//! example, it doesn't handle process forking or VM image cloning, it doesn't even try to scrub
+//! generated data from its internal buffer after it's consumed, and it sacrifices so-called *fast
+//! key erasure* in favor of needing fewer bytes to serialize the current state.
 //!
-//! This crate has SIMD backends for better preformance on several common targets: SSE2 and AVX2 on
-//! x86 and x86_64, NEON on AArch64 (little-endian only), and SIMD128 on Webassembly. Only the AVX2
-//! backend uses runtime feature detection. Of course, there is also a portable implementation for
-//! all other platforms, which is slower in microbenchmarks but still plenty fast enough for most
-//! use cases. Other features include:
+//! # <a name="crate-features"></a> Crate Features
 //!
-//! * It's tested to work correctly on big endian targets.
-//! * RNG state can be serialized efficiently into 9x4 = 36 bytes.
-//! * Optional implementations for `rand_core` traits behind a Cargo feature flag.
-//! * The crate is `no_std` by default. Enabling the `"std"` feature is only necessary for runtime
-//!   feature detection (only applies to AVX2 at the moment).
+//! The crate is `no_std` and "no `alloc`" by default. There are two crate features you might enable
+//! when you add `chacha8rand` to your Cargo.toml file:
+//!
+//! * **`std`**: opts out of `#![no_std]`, enables runtime detection of `target_feature`s for higher
+//!   performance on some targets. It does not affect the API surface, so ideally libraries leave
+//!   this decision to the top-level binary. Most applications should probably enable it because
+//!   it's basically a free performance improvement.
+//! * **`rand_core_0_6`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.6,
+//!   for integration with (that version of) the rand ecosystem. When new semver-incompatible
+//!   versions of `rand` and friends get released, they will get another feature flag so both sets
+//!   of impls can coexist.
+//!
+//! Neither feature is enabled by default, so you don't need to add `no-default-features = true`. In
+//! fact, please don't, because that makes it harder to add more feature flags in the future without
+//! semver-breaking changes.
+//!
+//! As for the non-Cargo meaning of "features" -- this crate has SIMD backends for better
+//! preformance on several common targets. Currently that's SSE2 and AVX2 on x86 and x86_64, NEON on
+//! AArch64 ([little-endian only][aarch64be-neon]), and SIMD128 on Webassembly. Only the AVX2
+//! backend uses runtime detection at the moment. Of course, there is also a portable implementation
+//! for all other platforms, which is slower in microbenchmarks but still plenty fast enough for
+//! most use cases. It's also tested to work correctly on big endian targets.
+//!
+//! Another feature that may be worth noting is that the RNG state can be serialized into as little
+//! as 34 bytes. There are no `serde` impls, but it's only two fields of data (see
+//! [`ChaCha8State`]).
 //!
 //! The main reasons why you might not want to use this crate are the use of `unsafe` for accessing
 //! SIMD intrinsics and the relatively large buffer (4x larger than the Go implementation). The
@@ -128,9 +168,12 @@
 //! writing [`ChaCha8Rand`] and Go already behave very differently when you do this. Further changes
 //! to this behavior will not be considered semver-breaking.
 //!
+//! [aarch64be-neon]: https://github.com/rust-lang/stdarch/issues/1484
+//! [getrandom]: https://crates.io/crates/getrandom
 //! [go-blog]: https://go.dev/blog/chacha8rand
-//! [spec]: https://c2sp.org/chacha8rand
 //! [rand-repro-policy]: https://rust-random.github.io/book/crate-reprod.html
+//! [spec]: https://c2sp.org/chacha8rand
+//! [sts-corr-rand]: https://forgottenarbiter.github.io/Correlated-Randomness/
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![no_std]
 use core::{array, cmp, error::Error, fmt};
@@ -341,6 +384,12 @@ impl ChaCha8Rand {
             debug_assert!(self.bytes_consumed <= self.buf.output().len());
         }
         debug_assert!(total_bytes_read == dest.len());
+    }
+
+    pub fn read_seed(&mut self) -> [u8; 32] {
+        let mut seed = [0; 32];
+        self.read_bytes(&mut seed);
+        seed
     }
 }
 

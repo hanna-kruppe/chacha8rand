@@ -6,7 +6,7 @@ rust-version = "1.81"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hanna-kruppe/chacha8rand"
 description = """
-Deterministic random number generator that's robust, reproducible and fast
+Reproducible, robust and (last but not least) fast pseudorandomness
 """
 keywords = ["no_std", "no-std", "random"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
@@ -25,6 +25,9 @@ unstable_internals = []
 [dependencies]
 arrayref = "0.3.9"
 rand_core = { version = "0.6.4", default-features = false, optional = true }
+
+[dev-dependencies]
+getrandom = "0.2.15"
 
 [package.metadata.docsrs]
 features = ["rand_core_0_6"]
