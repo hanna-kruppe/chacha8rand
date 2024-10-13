@@ -64,13 +64,13 @@
 //!
 //! # <a name="no-crypto"></a> Don't Use This For Cryptography
 //!
-//! ChaCha8Rand derives its high quality from eight-round ChaCha20, which is a secure stream cipher
-//! as far as anyone knows today (but in most cases you also want ciphertext authenticity, i.e., an
-//! AEAD mode). Thus, ChaCha8Rand can mostly be used as a black-box source of high quality
+//! ChaCha8Rand derives its high quality from ChaCha8, which is a secure stream cipher as far as
+//! anyone knows today (although in most cases you also want ciphertext authenticity, i.e., an AEAD
+//! mode). Thus, ChaCha8Rand can mostly be used as a black-box source of high quality
 //! pseudorandomness. If there were any patterns or biases in its output, or if the output sequences
 //! for different seeds (with some known relation between them) were not statistically independent,
-//! that would most likely imply a major breakthrough in the cryptanalysis of ChaCha20. However,
-//! that doesn't mean this crate is a replacement for cryptographically secure randomness from the
+//! that would most likely imply a major breakthrough in the cryptanalysis of ChaCha. However, that
+//! doesn't mean this crate is a replacement for cryptographically secure randomness from the
 //! operating system or libraries that wrap it, such as [`getrandom`][getrandom].
 //!
 //! As Russ Cox and Filippo Valsorda wrote [while introducing the algorithm][go-blog], regarding
@@ -93,8 +93,8 @@
 //!
 //! # <a name="crate-features"></a> Crate Features
 //!
-//! The crate is `no_std` and "no `alloc`" by default. There are two crate features you might enable
-//! when you add `chacha8rand` to your Cargo.toml file:
+//! The crate is `no_std` and "no `alloc`" by default. There are currently two crate features you
+//! might enable when you add `chacha8rand` to your Cargo.toml file:
 //!
 //! * **`std`**: opts out of `#![no_std]`, enables runtime detection of `target_feature`s for higher
 //!   performance on some targets. It does not affect the API surface, so ideally libraries leave
@@ -106,10 +106,12 @@
 //!   of impls can coexist.
 //!
 //! Neither feature is enabled by default, so you don't need to add `no-default-features = true`. In
-//! fact, please don't, because that makes it harder to add more feature flags in the future without
-//! semver-breaking changes. There are also some features with an "unstable" prefix in their name.
-//! Anything covered by "unstable" features is explicitly not covered by SemVer and may change or be
-//! removed at any time.
+//! fact, please don't, because that turns new feature flags for previously existing functionality a
+//! breaking change.
+//!
+//! There are also some features with an "unstable" prefix in their name. Anything covered by
+//! "unstable" features is explicitly not covered by SemVer and may change or be removed at any
+//! time.
 //!
 //! As for the non-Cargo meaning of "features", take a look at [`ChaCha8Rand`] to learn more about
 //! these aspects:
