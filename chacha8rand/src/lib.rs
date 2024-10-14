@@ -18,7 +18,8 @@
 //! [`getrandom`][getrandom] crate:
 //!
 //! ```
-//! # use chacha8rand::ChaCha8Rand;
+//! use chacha8rand::ChaCha8Rand;
+//!
 //! let mut seed = [0; 32];
 //! getrandom::getrandom(&mut seed).expect("getrandom failure is 'highly unlikely'");
 //! let mut rng = ChaCha8Rand::new(&seed);
@@ -43,8 +44,9 @@
 //! wrote this crate, and there's a convenience method for it:
 //!
 //! ```
-//! # use chacha8rand::ChaCha8Rand;
-//! # let initial_seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+//! use chacha8rand::ChaCha8Rand;
+//!
+//! let initial_seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
 //! let mut seed_gen = ChaCha8Rand::new(&initial_seed);
 //! // Create new instances with seeds from `seed_gen`...
 //! let mut rng1 = ChaCha8Rand::new(&seed_gen.read_seed());
@@ -94,16 +96,18 @@
 //! # <a name="crate-features"></a> Crate Features
 //!
 //! The crate is `no_std` and "no `alloc`" by default. There are currently two crate features you
-//! might enable when depend on `chacha8rand`. You can manually add them to Cargo.toml (`features =
-//! [...]` key) or use a command like `cargo add -p chacha8rand -F rand_core_0_6`. The
+//! might enable when depending on `chacha8rand`. You can manually add them to Cargo.toml (`features
+//! = [...]` key) or use a command like `cargo add chacha8rand -F rand_core_0_6`. The features are:
 //!
 //! * **`std`**: opts out of `#![no_std]`, enables runtime detection of `target_feature`s for higher
-//!   performance on some targets. It does not affect the API surface, so ideally libraries leave
-//!   this decision to the top-level binary. Most applications should probably enable it because
-//!   it's basically a free performance improvement.
+//!   performance on some targets. It does not (currently) affect the API surface, so ideally
+//!   libraries leave this decision to the top-level binary. For forward compatibility, enabling
+//!   this feature *always* adds a dependency on `std`, even on targets where `std` isn't needed
+//!   today.
 //! * **`rand_core_0_6`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.6,
 //!   for integration with `rand` version 0.8. The upcoming semver-incompatible release of the rand
-//!   crates (v0.9) will get another feature so that both can coexist.
+//!   crates (v0.9) will get another feature so that `ChaCha8Rand` can implement both the new and
+//!   the old versions of these traits at the same time.
 //!
 //! Neither feature is enabled by default, so you don't need `no-default-features = true` / `cargo
 //! add --no-default-features`. In fact, please don't, because then your code might break if a later
@@ -135,6 +139,13 @@
 #![warn(missing_docs)]
 #![no_std]
 use core::{array, cmp, error::Error, fmt};
+
+// Currently, we only *need* `std` on x86 for runtime feature detection. But later versions might
+// use runtime detection on more platforms, or implement traits that require `std`. It would suck if
+// a semver-minor update like that broke something because people (like myself) were using the crate
+// with the `std` feature enabled in a `#![no_std]` binary. So we always pull in the crate here.
+#[cfg(feature = "std")]
+extern crate std;
 
 use arrayref::array_ref;
 
@@ -168,15 +179,15 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 /// The [ChaCha8Rand specification][spec] describes how a seed is expanded into an unbounded stream
 /// of pseudorandom bytes. This stream should be uniquely determined: byte order is fixed to little
 /// endian, the differences between various ChaCha20 variants (32- or 64-bit counter, nonce size)
-/// don't make a difference in this context, and the test vector included in the spec should remove
-/// any remaining doubts.
+/// don't matter in this context, and the test vector included in the spec should remove any
+/// remaining doubts.
 ///
 /// Until the 1.0 release of this crate, I reserve the right to make API breaking changes and fix
-/// divergences from the spec. But the intent is to match the spec precisely and not change anything
-/// about the output for a given seed in future releases. If the spec gets an incompatible 2.0
-/// release and I want to implement it, that will be a semver-major release. Note that the spec
-/// technically hasn't been tagged as 1.0, but breaking changes seem very unlikely since the same
-/// people already shipped an implementation in the Go standard library.
+/// bugs even if they change the output. But the intent is to match the spec precisely and not
+/// change anything about the output for a given seed in future releases. If the spec gets an
+/// incompatible 2.0 release and I want to implement it, that will be a semver-major release. Note
+/// that the spec technically hasn't been tagged as 1.0, but breaking changes seem very unlikely
+/// since the same people already shipped an implementation in the Go standard library.
 ///
 /// Besides treating the generator as a byte stream with [`ChaCha8Rand::read_bytes`], you can also
 /// use other methods such as [`ChaCha8Rand::read_u64`]. What happens when you interleave calls to
@@ -254,10 +265,10 @@ impl fmt::Debug for ChaCha8Rand {
 /// Possible use cases include:
 ///
 /// * Saving and restoring the RNG state as part of a game's (auto-)save feature.
-/// * Serializing it to disk to suspend and later resume a computation without having the timing of
-///   suspend/resume affect the result.
-/// * Forking a randomized algorithm, running two versions that get the same randomness but differ
-///   in some other way, to see how they diverge.
+/// * Suspending and later resume a long-running computation by saving the RNG (and all other state)
+///   to disk.
+/// * Forking a randomized algorithm, running it twice with the same randomness but handling
+///   different input, to see how they diverge (e.g., "what if" queries).
 ///
 /// There are no `serde` impls. Instead, the fields are public so you can (de-)serialize them in any
 /// way you see fit. In this case you should be prepared to handle errors due to out-of-range
@@ -268,8 +279,11 @@ impl fmt::Debug for ChaCha8Rand {
 /// directly with [`ChaCha8Rand::new`] or [`ChaCha8Rand::set_seed`].
 ///
 /// Finally, note that [`ChaCha8Rand`] also implements `Clone`. Cloning a generator achieves the
-/// same effect as taking a snapshot of its state, but the generator is much larger because it
-/// includes a big buffer of output that could be regenerated on demand from a snapshot.
+/// same effect as taking a snapshot of its state and restoring from it, but the generator is much
+/// larger because it includes a big buffer of output. If you want to duplicate a generator and
+/// consume output from both copies, cloning is easier *and* doesn't have to re-compute the output
+/// that's already buffered. But if you store several snapshots and *possibly* use some of them at a
+/// later time, cloning would waste a lot of memory.
 ///
 /// # Examples
 ///
