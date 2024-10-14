@@ -105,9 +105,9 @@
 //!   this feature *always* adds a dependency on `std`, even on targets where `std` isn't needed
 //!   today.
 //! * **`rand_core_0_6`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.6,
-//!   for integration with `rand` version 0.8. The upcoming semver-incompatible release of the rand
-//!   crates (v0.9) will get another feature so that `ChaCha8Rand` can implement both the new and
-//!   the old versions of these traits at the same time.
+//!   for integration with `rand` v0.8. The upcoming v0.9 release of the rand crates will get
+//!   another feature so that `ChaCha8Rand` can implement both the new and the old versions of these
+//!   traits at the same time.
 //!
 //! Neither feature is enabled by default, so you don't need `no-default-features = true` / `cargo
 //! add --no-default-features`. In fact, please don't, because then your code might break if a later
