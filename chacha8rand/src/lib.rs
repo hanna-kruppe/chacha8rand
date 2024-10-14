@@ -94,32 +94,31 @@
 //! # <a name="crate-features"></a> Crate Features
 //!
 //! The crate is `no_std` and "no `alloc`" by default. There are currently two crate features you
-//! might enable when you add `chacha8rand` to your Cargo.toml file:
+//! might enable when depend on `chacha8rand`. You can manually add them to Cargo.toml (`features =
+//! [...]` key) or use a command like `cargo add -p chacha8rand -F rand_core_0_6`. The
 //!
 //! * **`std`**: opts out of `#![no_std]`, enables runtime detection of `target_feature`s for higher
 //!   performance on some targets. It does not affect the API surface, so ideally libraries leave
 //!   this decision to the top-level binary. Most applications should probably enable it because
 //!   it's basically a free performance improvement.
 //! * **`rand_core_0_6`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.6,
-//!   for integration with (that version of) the rand ecosystem. When new semver-incompatible
-//!   versions of `rand` and friends get released, they will get another feature flag so both sets
-//!   of impls can coexist.
+//!   for integration with `rand` version 0.8. The upcoming semver-incompatible release of the rand
+//!   crates (v0.9) will get another feature so that both can coexist.
 //!
-//! Neither feature is enabled by default, so you don't need to add `no-default-features = true`. In
-//! fact, please don't, because that turns new feature flags for previously existing functionality a
-//! breaking change.
+//! Neither feature is enabled by default, so you don't need to add `no-default-features = true` /
+//! `cargo add --no-default-features`. In fact, please don't, because then your code might break if
+//! a later version moves existing functionality under a new on-by-default feature.
 //!
-//! There are also some features with an "unstable" prefix in their name. Anything covered by
-//! "unstable" features is explicitly not covered by SemVer and may change or be removed at any
-//! time.
+//! There are also some features with an "unstable" prefix in their name. Anything covered by these
+//! is for internal use only (e.g., the crate's benchmarks are compiled as a separate crate) and
+//! explicitly not covered by SemVer.
 //!
-//! As for the non-Cargo meaning of "features", take a look at [`ChaCha8Rand`] to learn more about
-//! these aspects:
+//! # Minimum Supported Rust Version (MSRV)
 //!
-//! * Once the crate reaches 1.0, the output you get from a given seed will not change in minor or
-//!   patch releases.
-//! * On several common targets, SIMD instructions are used to improve performance.
-//! * The generator's state can be serialized into as little as 34 bytes.
+//! There is no MSRV policy at the moment, so features from new stable Rust versions may be adopted
+//! as soon as they come out (but in practice I don't expect to make frequent releases). If you need
+//! to use this crate with a specific older version, you can open an issue and we can take a look at
+//! how easy or difficult it would be to support that version.
 //!
 //! # Drawbacks
 //!
