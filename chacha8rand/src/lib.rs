@@ -39,8 +39,8 @@
 //! want to enable the [crate feature](#crate-features) to combine [`ChaCha8Rand`] with the `rand`
 //! crate. Another thing you can do (even without `rand`) is deriving seeds for multiple sub-RNGs
 //! that are used for different purposes, without creating correlation between those different
-//! streams of randomness (e.g., for [roguelike games][sts-corr-rand]). The ability to do this is
-//! one reason why I wrote this crate, and there's a convenience method for it:
+//! streams of randomness (e.g., for roguelike games). The ability to do this is one reason why I
+//! wrote this crate, and there's a convenience method for it:
 //!
 //! ```
 //! # use chacha8rand::ChaCha8Rand;
@@ -105,9 +105,9 @@
 //!   for integration with `rand` version 0.8. The upcoming semver-incompatible release of the rand
 //!   crates (v0.9) will get another feature so that both can coexist.
 //!
-//! Neither feature is enabled by default, so you don't need to add `no-default-features = true` /
-//! `cargo add --no-default-features`. In fact, please don't, because then your code might break if
-//! a later version moves existing functionality under a new on-by-default feature.
+//! Neither feature is enabled by default, so you don't need `no-default-features = true` / `cargo
+//! add --no-default-features`. In fact, please don't, because then your code might break if a later
+//! version moves existing functionality under a new on-by-default feature.
 //!
 //! There are also some features with an "unstable" prefix in their name. Anything covered by these
 //! is for internal use only (e.g., the crate's benchmarks are compiled as a separate crate) and
@@ -131,9 +131,8 @@
 //! [getrandom]: https://crates.io/crates/getrandom
 //! [go-blog]: https://go.dev/blog/chacha8rand
 //! [spec]: https://c2sp.org/chacha8rand
-//! [sts-corr-rand]: https://forgottenarbiter.github.io/Correlated-Randomness/
 #![forbid(unsafe_op_in_unsafe_fn)]
-//#![warn(missing_docs)] - TODO finish the rest
+#![warn(missing_docs)]
 #![no_std]
 use core::{array, cmp, error::Error, fmt};
 
@@ -227,10 +226,6 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 /// [spec]: https://c2sp.org/chacha8rand
 #[derive(Clone)]
 pub struct ChaCha8Rand {
-    // Note: rustc's field reordering heuristc puts the buffer before the other fields because it has
-    // the highest alignment. There are other layouts that also minimize padding, but the one rustc
-    // picks happen to generate slightly better code for `read_{u32,u64}` on some targets (e.g., on
-    // aarch64, not computing the address of the buffer before checking if it needs to be refilled).
     backend: Backend,
     seed: [u32; 8],
     /// Position in `buf.output()` of the next byte to produce as output. Should be equal to
@@ -399,8 +394,8 @@ impl ChaCha8Rand {
 
     /// Reset this generator, as if overwriting it with `ChaCha8Rand::new(seed)`.
     ///
-    /// The only reason this exists is because it's more convenient sometimes and might avoid
-    /// copying a relatively large type from one location to another.
+    /// This helper method exists is because it's more convenient sometimes and might avoid copying
+    /// a relatively large type from one location to another.
     ///
     /// # Examples
     ///
@@ -493,9 +488,10 @@ impl ChaCha8Rand {
     /// problem. They're also usually more efficient than computing the remainder, which is a
     /// relatively expensive operation even on modern CPUs.
     ///
-    /// At other times, 32 bits is exactly what you need. For example, [tabulation hasing][tab-hash]
-    /// with 32 bit output needs a table of random 32 bit integers. To hash a 64 bit value this way,
-    /// we could split it into 16 pieces of 4 bits each and use a table of 16 x 2^4 random `u32`s:
+    /// At other times, 32 bits is exactly what you need. For example, [tabulation
+    /// hashing][tab-hash] with 32 bit output needs a table of random 32 bit integers. To hash a 64
+    /// bit value this way, we could split it into 16 pieces of 4 bits each and use a table of 16 x
+    /// 2^4 random `u32`s:
     ///
     /// ```
     /// # use chacha8rand::ChaCha8Rand;
@@ -640,6 +636,45 @@ impl ChaCha8Rand {
         u64::from_le_bytes(buf)
     }
 
+    /// Consume uniformly random bytes and write them into `dest`.
+    ///
+    /// This method is, in some sense, the most foundational way of using the generator. Other
+    /// `read_*` methods behave as-if they read however many bytes they require, but they're more
+    /// convenient and often more efficient than reading a small number of bytes manually.
+    ///
+    /// On the other hand, when you need a large chunk of randomness (hundreds of bytes or more),
+    /// reading into a large buffer is very efficient because it boils down to one or several
+    /// `memcpy`s from the generator's internal buffer. With a large enough buffer, this can produce
+    /// several gigabytes per second with 128-bit SIMD, and the AVX2 backend goes roughly twice as
+    /// fast. (For `read_u32` and `read_u64`, the difference is *much* more modest.)
+    ///
+    /// # Example
+    ///
+    /// You can use this to derive a new 32-byte seed for another [`ChaCha8Rand`] instance, but the
+    /// [`ChaCha8Rand::read_seed`] helper makes this more convenient, so see examples there.
+    ///
+    /// Other use cases require more or fewer bytes. For example, random (v4) UUIDs are great for
+    /// assigning arbitrary names to objects or events while avoiding collisions with other people
+    /// (or their computers) doing the same thing. In most cases, you should generate a UUID
+    /// directly from OS-provided entropy, which the [`uuid`][uuid] crate supports with
+    /// `Uuid::new_v4()`. But in some cases it's more convenient to get a high-entropy seed from the
+    /// OS at startup and feed it into a high-quality userspace RNG to create lots of UUIDs:
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// use uuid::Uuid;
+    /// // For this use case, you *always* need a high-entropy seed!
+    /// // A low-entropy seed (current time, chosen by humans, etc.), reusing a seed,
+    /// // or cloning the generator leads to many colliding "UUIDs".
+    /// let mut seed = [0; 32];
+    /// getrandom::getrandom(&mut seed).expect("getrandom failure is 'highly unlikely'");
+    /// let mut rng = ChaCha8Rand::new(&seed);
+    /// let mut uuid_bytes = [0u8; 16];
+    /// rng.read_bytes(&mut uuid_bytes);
+    /// let uuid = Uuid::from_bytes(uuid_bytes);
+    /// ```
+    ///
+    /// [uuid]: https://crates.io/crates/uuid
     pub fn read_bytes(&mut self, dest: &mut [u8]) {
         let mut total_bytes_read = 0;
         while total_bytes_read < dest.len() {
@@ -659,6 +694,89 @@ impl ChaCha8Rand {
         debug_assert!(total_bytes_read == dest.len());
     }
 
+    /// Consume 32 uniformly random bytes, suitable for seeding another RNG instance.
+    ///
+    /// This is a simple wrapper around `read_bytes`, but returning an array by value is convenient
+    /// when you want to use it as a seed. The ChaCha8Rand algorithm already replaces its seed with
+    /// some of its earlier output after every iteration (992 bytes of output + 32 bytes of new
+    /// seed). In this sense, it's not even that strange to use the other output in the same way.
+    /// There's usually no point in manually re-seeding the *same* generator instance, but it's
+    /// often useful to derive several independent generators from a "root" seed.
+    ///
+    /// Of course, the seed could also be used with any other PRNG algorithm that accepts 32-byte
+    /// seeds. However, most generators that accept `[u8; 32]` as seed also use stream or block
+    /// ciphers to generate large batches of data. There are some statistical generators that happen
+    /// to have exactly 32 bytes of state, but these usually want 32- or 64-bit integers instead of
+    /// raw bytes. In that case you might just call `read_u32` or `read_u64` a few times.
+    ///
+    /// # Examples
+    ///
+    /// In general, having multiple generator instances is useful when you want some *domain
+    /// separation*. A Monte Carlo simulation that should be reproducible from a seed might also
+    /// rely on some *Las Vegas* algorithms for auxillary tasks that don't affect the simulation's
+    /// outcome (e.g., randomized quicksort or building a perfect hash table). If everything shares
+    /// a single generator, any change to how much (or when) randomness is consumed will affect
+    /// reproducibility of the simulation. On the other hand, debugging may be easier if the rest of
+    /// the program also depends on the seed. In such cases, you could stretch a "root" seed into
+    /// multiple seeds (without involving additional algorithms such as key derivation functions):
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// # fn quicksort_with_random_pivot<T, U>(_: &mut T, _: &mut U) {}
+    /// let root_seed = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+    /// let mut root_rng = ChaCha8Rand::new(root_seed);
+    /// let mut sim_rng = ChaCha8Rand::new(&root_rng.read_seed());
+    /// let mut qsort_rng = ChaCha8Rand::new(&root_rng.read_seed());
+    /// drop(root_rng); // no longer needed
+    /// let steps = sim_rng.read_u32();
+    /// # let steps = 3;
+    /// for _ in 0..steps {
+    ///     // ... generate some data using `sim_rng` ...
+    ///     # let mut intermediate_results = [1, 2, 3];
+    ///     quicksort_with_random_pivot(
+    ///         &mut intermediate_results,
+    ///         &mut qsort_rng,
+    ///     );
+    ///     // ... use the sorted data ...
+    /// }
+    /// ```
+    ///
+    /// Another example comes from roguelike games that use a single seed to drive procedural
+    /// generation as well as the blow-by-blow game play. If one seeds leads to particularly
+    /// interesting outcomes, players may want to share and reuse it. This falls flat if *any*
+    /// change in how much randomness is consumed avalanches into entirely different outcomes down
+    /// the line. For example, if parts of the map are generated on the fly, they might look
+    /// entirely different depending on how many turns the player took to reach them. Instead, you
+    /// can set up one generator for every aspect of the game's randomness, and derive seeds for all
+    /// of them from the seed that the player deals with. Just make sure you don't [accidentally use
+    /// the *same* seed][sts-corr-rand] for each of the generators.
+    ///
+    /// ```
+    /// # use chacha8rand::ChaCha8Rand;
+    /// struct GameStateGodObject {
+    ///     map_rng: ChaCha8Rand,
+    ///     encounter_rng: ChaCha8Rand,
+    ///     ai_rng: ChaCha8Rand,
+    ///     event_rng: ChaCha8Rand,
+    ///     // ...
+    /// }
+    ///
+    /// impl GameStateGodObject {
+    ///     fn new(seed: [u8; 32]) -> Self {
+    ///         let mut root = ChaCha8Rand::new(&seed);
+    ///         let mut derive_rng = || ChaCha8Rand::new(&root.read_seed());
+    ///         Self {
+    ///             map_rng: derive_rng(),
+    ///             encounter_rng: derive_rng(),
+    ///             ai_rng: derive_rng(),
+    ///             event_rng: derive_rng(),
+    ///             // ...
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// [sts-corr-rand]: https://forgottenarbiter.github.io/Correlated-Randomness/
     pub fn read_seed(&mut self) -> [u8; 32] {
         let mut seed = [0; 32];
         self.read_bytes(&mut seed);

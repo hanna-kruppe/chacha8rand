@@ -29,6 +29,7 @@ rand_core = { version = "0.6.4", default-features = false, optional = true }
 [dev-dependencies]
 getrandom = "0.2.15"
 rand = "0.8.5"
+uuid = "1.10.0"
 
 [package.metadata.docsrs]
 features = ["rand_core_0_6"]
