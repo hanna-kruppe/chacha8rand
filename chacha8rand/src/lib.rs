@@ -143,7 +143,7 @@ use core::{array, cmp, error::Error, fmt};
 // Currently, we only *need* `std` on x86 for runtime feature detection. But later versions might
 // use runtime detection on more platforms, or implement traits that require `std`. It would suck if
 // a semver-minor update like that broke something because people (like myself) were using the crate
-// with the `std` feature enabled in a `#![no_std]` binary. So we always pull in the crate here.
+// with the `std` feature enabled in a `#![no_std]` binary. So we always pull in std here.
 #[cfg(feature = "std")]
 extern crate std;
 
