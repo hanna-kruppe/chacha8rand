@@ -40,18 +40,17 @@
 //! want to enable the [crate feature](#crate-features) to combine [`ChaCha8Rand`] with the `rand`
 //! crate. Another thing you can do (even without `rand`) is deriving seeds for multiple sub-RNGs
 //! that are used for different purposes, without creating correlation between those different
-//! streams of randomness (e.g., for roguelike games). The ability to do this is one reason why I
-//! wrote this crate, and there's a convenience method for it:
+//! streams of randomness. The ability to do this with confidence is one reason why I decided to
+//! implement ChaCha8Rand in the first place, so there's a little helper for it:
 //!
 //! ```
 //! use chacha8rand::ChaCha8Rand;
 //!
-//! let initial_seed = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
-//! let mut seed_gen = ChaCha8Rand::new(&initial_seed);
+//! let mut seed_gen = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
 //! // Create new instances with seeds from `seed_gen`...
 //! let mut rng1 = ChaCha8Rand::new(&seed_gen.read_seed());
 //! let mut rng2 = ChaCha8Rand::new(&seed_gen.read_seed());
-//! assert_ne!(rng1.read_u64(), rng2.read_u64(), "if this fails you're _very_ unlucky");
+//! assert_ne!(rng1.read_u64(), rng2.read_u64());
 //! // ... and/or re-seed an existing instance in-place:
 //! rng1.set_seed(&seed_gen.read_seed());
 //! ```
