@@ -10,6 +10,7 @@ Reproducible, robust and (last but not least) fast pseudorandomness
 """
 keywords = ["no_std", "no-std", "random"]
 categories = ["algorithms", "no-std", "no-std::no-alloc"]
+readme = "../README.md"
 include = [
     "/LICENSE-MIT",
     "/LICENSE-APACHE",
