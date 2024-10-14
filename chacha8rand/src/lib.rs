@@ -134,7 +134,7 @@
 //! [spec]: https://c2sp.org/chacha8rand
 //! [sts-corr-rand]: https://forgottenarbiter.github.io/Correlated-Randomness/
 #![forbid(unsafe_op_in_unsafe_fn)]
-#![warn(missing_docs)]
+//#![warn(missing_docs)] - TODO finish the rest
 #![no_std]
 use core::{array, cmp, error::Error, fmt};
 
@@ -156,7 +156,7 @@ use backend::Backend;
 const BUF_TOTAL_LEN: usize = 1024;
 const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 
-/// A deterministic stream of pseudorandom data from a 32-byte seed.
+/// A deterministic stream of pseudorandom bytes from a 32-byte seed.
 ///
 /// See the crate documentation for a higher-level introduction and quick-start examples. Here
 /// you'll only find excessive extra details about reproducibility and some notes about
@@ -167,48 +167,39 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 ///
 /// # <a name="repro-details"></a> Reproducibility
 ///
-/// Until I release version 1.0 of this crate, I reserve the right to fix divergences from the
-/// [ChaCha8Rand specification][spec] or tweak behavior not covered by the spec. Afterwards, **the
-/// output for a given seed will not change in minor or patch releases**. If there is an
-/// incompatible change to the spec and I want to implement it, or someone finds a serious bug that
-/// can't be fixed without changing output, that will be a semver-major release. Note that the spec
+/// The [ChaCha8Rand specification][spec] describes how a seed is expanded into an unbounded stream
+/// of pseudorandom bytes. This stream should be uniquely determined: byte order is fixed to little
+/// endian, the differences between various ChaCha20 variants (32- or 64-bit counter, nonce size)
+/// don't make a difference in this context, and the test vector included in the spec should remove
+/// any remaining doubts.
+///
+/// Until the 1.0 release of this crate, I reserve the right to make API breaking changes and fix
+/// divergences from the spec. But the intent is to match the spec precisely and not change anything
+/// about the output for a given seed in future releases. If the spec gets an incompatible 2.0
+/// release and I want to implement it, that will be a semver-major release. Note that the spec
 /// technically hasn't been tagged as 1.0, but breaking changes seem very unlikely since the same
 /// people already shipped an implementation in the Go standard library.
 ///
-/// The sequence of bytes generated from a given seed is (or should be) uniquely determined by the
-/// spec. It does not depend on the target platform, in particular, it doesn't depend on "native"
-/// endianness. The algorithm uses 32-bit words internally, but it always interprets the seed in
-/// little-endian byte order and produces output in little-endian byte order. So if you only ever
-/// treat the generator as a stream of bytes ([`ChaCha8Rand::read_bytes`] and
-/// [`ChaCha8Rand::read_seed`]), you'll get the same output from any other implementation of the
-/// spec.
+/// Besides treating the generator as a byte stream with [`ChaCha8Rand::read_bytes`], you can also
+/// use other methods such as [`ChaCha8Rand::read_u64`]. What happens when you interleave calls to
+/// these methods, i.e., mix and match different read granularities? There's no clear "best" answer.
+/// Different implementation strategies lead to different behavior and it's reasonable to not
+/// specify it or reserve the right to change it later. However, for this crate I wanted to commit
+/// to a simple and useful mental model. What I ended up with is:
 ///
-/// Alternatively, if you treat it as a stream of 64-bit integers ([`ChaCha8Rand::read_u64`]), every
-/// group of eight bytes is interpreted in little-endian byte order. This is not part of the spec,
-/// strictly speaking, but it's a fairly natural choice. It's also how Go's version implements the
-/// `Uint64()` method and the `rand.Source` interface.
+/// * The generator is *just* the spec-mandated stream of bytes. Repeatedly calling `read_bytes`
+///   gives you these bytes in order without skipping, reordering, or duplicating anything.
+/// * The number of calls to `read_bytes` and the size of each read doesn't affect behavior. The
+///   number of bytes consumed is never rounded up internally because that would skip some bytes.
+///   Zero-sized reads are no-ops.
+/// * Methods like `read_u32`, `read_u64`, `read_seed`, and any others that might be added in the
+///   future, behave exactly like reading the appropriate number of bytes from the stream and
+///   converting those to the result type. When byte order matters, this always uses little endian.
 ///
-/// However, if you start consuming the randomness in one way and later switch to another way, the
-/// output you'll get depends on implementation choices that are not uniquely determined. The raw
-/// byte stream may be consumed out of order and parts of it may be skipped, but no byte should be
-/// used more than once. This crate also lets you consume 32-bit integers
-/// ([`ChaCha8Rand::read_u32`]) directly, which has no Go equivalent (the `Rand.Uint32` helper takes
-/// 64 bits from the source and discards half). I can only document what this crate implements:
-///
-/// * Consuming bytes in any granularity via [`ChaCha8Rand::read_bytes`] and
-///   [`ChaCha8Rand::read_seed`] always consumes the output byte stream in order, without skipping
-///   or reordering anything.
-/// * Consuming integers with [`ChaCha8Rand::read_u32`] and [`ChaCha8Rand::read_u64`] generally acts
-///   like reading the corresponding number of bytes (`size_of::<T>()`) with
-///   [`ChaCha8Rand::read_bytes`] and interpreting them in little-endian byte order, *except* when
-///   there are too few output bytes left in the current iteration of ChaCha8Rand (992 output bytes
-///   plus 32 byte input for the next iteration). In this case, the remaining bytes of the current
-///   iteration are skipped and the output is taken from the first bytes of the next iteration.
-///
-/// Committing to this behavior effectively means baking in some artifacts of the current
-/// implementation, e.g., buffering a full iteration of output and and handling unaligned
-/// `u32`/`u64` reads from the buffer. Again, I reserve the right to tweak this before the crate's
-/// 1.0 release, but then I'll commit to *something*.
+/// This is different from what Go's implementation does when you interleave calls to its `Uint64`
+/// and `Read` methods. The documentation explicitly says the results are unspecified and may return
+/// bytes "out of order". The implementation in Go 1.23 does in fact behave differently from this
+/// crate in many cases. (It also doesn't provide a direct way to read a 32-bit integer.)
 ///
 /// # Serialization and Deserialization
 ///
@@ -226,11 +217,11 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 ///  is also a portable implementation for all other platforms, which is slower in microbenchmarks
 /// but still plenty fast enough for most use cases.
 ///
-/// Unlike Go 1.23, this crate also uses SIMD on 32-bit x86 targets and Webassembly with the
-/// `simd128` feature. There's also a AVX2 backend for 256-bit SIMD on x86 and x86_64. This backend
-/// uses runtime feature detection (if the `std` feature is enabled) so you don't have to fiddle
-/// with `-Ctarget-feature` and risk the program not working on some older CPUs. Other instruction
-/// sets and more runtime feature detection may be added in the future.
+/// Unlike Go (version 1.23), this crate also uses SIMD on 32-bit x86 targets and Webassembly with
+/// the `simd128` feature. There's also a AVX2 backend for 256-bit SIMD on x86 and x86_64. This
+/// backend uses runtime feature detection (if the `std` feature is enabled) so you don't have to
+/// fiddle with `-Ctarget-feature` and risk the program not working on some older CPUs. Other
+/// instruction sets and more runtime feature detection may be added in the future.
 ///
 /// [aarch64be-neon]: https://github.com/rust-lang/stdarch/issues/1484
 /// [crate-features]: ./index.html#crate-features
@@ -441,30 +432,43 @@ impl ChaCha8Rand {
 
     /// Consume four bytes of uniformly random data and return them as `u32`.
     ///
-    /// If you need a uniformly random integer in a range `0..(1 << k)` for some k < 32, you can
-    /// take the bottom k bits (or any other subset of bits you want, they're all equally random).
-    /// However, for numbers in a non-power-of-two range, you should *not* use the remainder
-    /// operator `%` because that would lead to some outcomes being more common than others. The
-    /// `rand` crate supports this directly, and you can use it with ChaCha8Rand by [activating the
-    /// crate feature for it][rand-feature].
+    /// This is always equivalent to [`ChaCha8Rand::read_bytes`] plus `u32::from_le_bytes`, but 99%
+    /// of the time it's more efficient. If you simply need 32 or fewer uniformly random bits, this
+    /// method enables this conveniently and without involving the `rand_*` crates.
     ///
-    /// For [reproducibility](#repro-details), keep in mind that mixing different read granularities
-    /// can skip some output bytes.
+    /// On the other hand, if you want integers in a range like `0..n` or `m..=n`, you should *not*
+    /// use this method and combine it with the remainder operator `%`. The `rand` crate has
+    /// convenient and efficient APIs for doing that correctly, without introducing bias. It also
+    /// supports more data types, non-uniform distributions, and higher-level operations such as
+    /// shuffling lists. You can use it with ChaCha8Rand by [activating the crate
+    /// feature][rand-feature] so that [`ChaCha8Rand`] implements the rand traits. See the examples
+    /// for more details.
     ///
     /// # Examples
     ///
-    /// If you want a smaller number of bits, you can cast to a smaller integer type and/or mask off
-    /// the excess bits:
+    /// To generate integers in some range `0..n` or `0..=n`, or to generate other types such as
+    /// floating point numbers, combine [`ChaCha8Rand`] with the rand crate (or another
+    /// implementation of the same algorithms).
     ///
-    /// ```
-    /// # use chacha8rand::ChaCha8Rand;
-    /// # let mut rng = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
-    /// let ascii = (rng.read_u32() & 0x7F) as u8;
-    /// println!("Your lucky ASCII character for the day is: {ascii:?}");
+    /// ```ignore
+    /// // This example is not tested automatically because it doesn't
+    /// // compile when the `rand_core_0_6` feature is disabled.
+    /// use chacha8rand::ChaCha8Rand; // with rand_core_0_6 feature
+    /// use rand::prelude::*; // rand version 0.8
+    ///
+    /// let mut rng = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
+    /// if rng.gen_ratio(2, 3) {
+    ///     println!("Nice weather we're having :)");
+    /// } else {
+    ///     println!("Awful weather, isn't it?");
+    /// }
+    /// let chan = rng.gen_range(1..100);
+    /// let celsius = rng.gen_range(-5.0..=35.0);
+    /// println!("Channel {chan} News said it'll be {celsius:.1} degrees tomorrow.");
     /// ```
     ///
-    /// However, choosing between a number of options that isn't a power of two is more difficult.
-    /// Simply taking the remainder introduces bias. This is easier to see when you try all the
+    /// Taking the remainder modulo `n` to get an integer in `0..n` should be avoided because it
+    /// introduces bias when `n` is not a power of two. This is easier to see when you try all the
     /// possibilities with a smaller number of bits than 32, e.g., with five bits and three options:
     ///
     /// ```
@@ -472,9 +476,19 @@ impl ChaCha8Rand {
     /// for five_bit_number in 0..(1 << 5) {
     ///     remainder_histogram[five_bit_number % 3] += 1;
     /// }
-    /// // A remainder of 2 occurs less often than the others!
     /// assert_eq!(remainder_histogram, [11, 11, 10]);
     /// ```
+    ///
+    /// In this example, the results 0 and 1 each have probability 11 / 32 = 34.375% and the result
+    /// 2 has probability 10 / 32 = 31.25% instead of the desired 33.333..% for each.
+    ///
+    /// It may appear that the bias becomes very small when you use 32 bits instead of just five,
+    /// but it can still cause problems at larger scales. Consider a scenario where you choose among
+    /// `n = (u32::MAX / 3) * 2` (ca. 2.86 billion) items via `read_u32() % n`. For any given item,
+    /// the odds of being chosen are already very small, with or without the bias. However, if you
+    /// choose a few hundred items and look at them as a whole, you'll notice that roughly half of
+    /// them are from the first *third* of the range `0..n`, and the other half are spread out
+    /// across the rest of the range.
     ///
     /// More fully featured libraries like `rand` implement sampling algorithms that avoid this
     /// problem. They're also usually more efficient than computing the remainder, which is a
@@ -524,28 +538,32 @@ impl ChaCha8Rand {
     pub fn read_u32(&mut self) -> u32 {
         const N: usize = size_of::<u32>();
 
-        // There doesn't seem to be a reliable, stable way to convince the compiler that this branch
-        // is unlikely. For example, #[cold] on Backend::refill is ignored at the time of this
-        // writing. Out of the various ways I've tried writing this function, this one seems to
-        // generate the least bad assembly when compiled in isolation. (Of course, in practice we
-        // want it to be inlined.)
         if self.bytes_consumed > BUF_OUTPUT_LEN - N {
-            self.refill();
+            return self.read_u32_near_buffer_end();
         }
         let bytes = *array_ref![self.buf.output(), self.bytes_consumed, N];
         self.bytes_consumed += N;
         u32::from_le_bytes(bytes)
     }
 
+    #[inline(never)]
+    #[cold]
+    fn read_u32_near_buffer_end(&mut self) -> u32 {
+        let mut buf = [0; 4];
+        self.read_bytes(&mut buf);
+        u32::from_le_bytes(buf)
+    }
+
     /// Consume eight bytes of uniformly random data and return them as `u64`.
     ///
-    /// As with [the 32-bit variant][`ChaCha8Rand::read_u32`]:
+    /// This is always equivalent to [`ChaCha8Rand::read_bytes`] plus `u64::from_le_bytes`, but 99%
+    /// of the time it's more efficient. If you simply need 64 or fewer uniformly random bits, this
+    /// method enables this conveniently and without involving the `rand_*` crates.
     ///
-    /// * You can use a subset of the bits if you don't need 64 of them.
-    /// * Don't use modulo to map it into a non-power-of-two ranges, the result isn't uniformly
-    ///   distributed.
-    /// * For [reproducibility](#repro-details), keep in mind that mixing different read
-    ///   granularities can skip some output bytes.
+    /// As discussed in the [the 32-bit variant][`ChaCha8Rand::read_u32`], you can and should use
+    /// [`ChaCha8Rand`] with the rand crates for bounded integers in a range such as `0..n` or
+    /// `m..=n`, to generate floating-point numbers and sample non-uniform distributions, to shuffle
+    /// lists, and so on.
     ///
     /// # Examples
     ///
@@ -608,11 +626,19 @@ impl ChaCha8Rand {
         const N: usize = size_of::<u64>();
         // Same code as for u32. Making this code generic over `N` is more trouble than it's worth.
         if self.bytes_consumed > BUF_OUTPUT_LEN - N {
-            self.refill();
+            return self.read_u64_near_buffer_end();
         }
         let bytes = *array_ref![self.buf.output(), self.bytes_consumed, N];
         self.bytes_consumed += N;
         u64::from_le_bytes(bytes)
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn read_u64_near_buffer_end(&mut self) -> u64 {
+        let mut buf = [0; 8];
+        self.read_bytes(&mut buf);
+        u64::from_le_bytes(buf)
     }
 
     pub fn read_bytes(&mut self, dest: &mut [u8]) {

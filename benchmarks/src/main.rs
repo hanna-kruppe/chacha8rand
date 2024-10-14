@@ -47,7 +47,8 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     let mut benchmarks = Vec::new();
 
     for (backend_name, backend) in &backends {
-        benchmarks.push(bench_u32s(backend_name, *backend));
+        benchmarks.push(bench_u32s(backend_name, *backend, 0));
+        benchmarks.push(bench_u32s(backend_name, *backend, 1));
     }
     benchmarks.push(bench_next_u32_rand_chacha());
 
@@ -140,11 +141,17 @@ fn one_sample(bench: &mut Benchmark) -> (Duration, u32) {
 
 const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
 
-fn bench_u32s(backend_name: &str, backend: Backend) -> Benchmark {
+fn bench_u32s(backend_name: &str, backend: Backend, skip_first_bytes: usize) -> Benchmark {
     let backend = black_box(backend);
     let mut rng = ChaCha8Rand::with_backend(SEED, backend);
+
+    // Skipping a 1, 2, or 3 number of bytes means that `read_u32` calls that need to refill the
+    // buffer *might* get slower because they do two small memcpys instead of one.
+    let mut skip_buf = [0; 4];
+    rng.read_bytes(&mut skip_buf[..skip_first_bytes]);
+
     Benchmark {
-        label: format!("u32/{backend_name}"),
+        label: format!("u32/skip{skip_first_bytes}b/{backend_name}"),
         work: Box::new(move |n| {
             for _ in 0..n {
                 black_box(rng.read_u32());

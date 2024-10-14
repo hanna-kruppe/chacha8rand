@@ -3,7 +3,7 @@ use core::iter;
 use std::prelude::rust_2021::*;
 use std::vec;
 
-use crate::{Backend, ChaCha8Rand, ChaCha8State, BUF_OUTPUT_LEN};
+use crate::{Backend, ChaCha8Rand, ChaCha8State};
 
 macro_rules! test_backends {
     (
@@ -223,14 +223,6 @@ fn read_u32s_and_bytes_interleaved(read_size: usize) {
     let mut rng = ChaCha8Rand::new(SAMPLE_SEED);
     let mut output: Vec<u8> = Vec::new();
     while output.len() < size_of_val::<[u64]>(SAMPLE_OUTPUT_U64LE) {
-        // Read up to three bytes extra if necessary to make sure they aren't skipped when we read
-        // the next u32.
-        if (output.len() % BUF_OUTPUT_LEN) + 4 > BUF_OUTPUT_LEN {
-            let trailing_bytes = BUF_OUTPUT_LEN - (output.len() % BUF_OUTPUT_LEN);
-            let mut buf = [0; 4];
-            rng.read_bytes(&mut buf[..trailing_bytes]);
-            output.extend_from_slice(&buf[..trailing_bytes]);
-        }
         output.extend_from_slice(&rng.read_u32().to_le_bytes());
         let read_start = output.len();
         output.resize(read_start + read_size, 0);
