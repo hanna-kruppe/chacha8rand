@@ -1,11 +1,11 @@
-use rand_core_0_6::{self as rand_core, RngCore, SeedableRng};
+use rand_core_0_9::{RngCore, SeedableRng};
 
 use crate::ChaCha8Rand;
 
-/// Integration with rand_core v0.6 / rand v0.8. Requires crate feature `rand_core_0_6`.
+/// Integration with rand_core v0.9 / rand v0.9. Requires crate feature `rand_core_0_9`.
 ///
 /// The trait methods simply delegate to the equivalent inherent methods. `next_u32` maps to
-/// [`ChaCha8Rand::read_u32`], and so on. `try_fill_bytes` never returns an error.
+/// [`ChaCha8Rand::read_u32`], and so on.
 impl RngCore for ChaCha8Rand {
     #[inline]
     fn next_u32(&mut self) -> u32 {
@@ -20,12 +20,6 @@ impl RngCore for ChaCha8Rand {
     #[inline]
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         self.read_bytes(dest);
-    }
-
-    #[inline]
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.read_bytes(dest);
-        Ok(())
     }
 }
 

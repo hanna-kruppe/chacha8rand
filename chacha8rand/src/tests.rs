@@ -235,7 +235,40 @@ fn read_u32s_and_bytes_interleaved(read_size: usize) {
 mod rand06 {
     use core::iter;
 
-    use rand_core::{RngCore, SeedableRng};
+    use rand_core_0_6::{RngCore, SeedableRng};
+
+    use crate::ChaCha8Rand;
+
+    use super::{check_byte_output, SAMPLE_OUTPUT_U64LE, SAMPLE_SEED};
+
+    #[test]
+    fn next_u32() {
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
+        let u32s = iter::repeat_with(|| RngCore::next_u32(&mut rng));
+        check_byte_output(u32s.flat_map(u32::to_le_bytes));
+    }
+
+    #[test]
+    fn next_u64() {
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
+        let u64s = iter::repeat_with(|| RngCore::next_u64(&mut rng));
+        check_byte_output(u64s.flat_map(u64::to_le_bytes));
+    }
+
+    #[test]
+    fn fill_bytes() {
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
+        let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
+        rng.fill_bytes(&mut bytes);
+        check_byte_output(bytes.iter().copied());
+    }
+}
+
+#[cfg(feature = "rand_core_0_9")]
+mod rand09 {
+    use core::iter;
+
+    use rand_core_0_9::{RngCore, SeedableRng};
 
     use crate::ChaCha8Rand;
 

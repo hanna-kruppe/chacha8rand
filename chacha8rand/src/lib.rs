@@ -96,7 +96,7 @@
 //!
 //! The crate is `no_std` and "no `alloc`" by default. There are currently two crate features you
 //! might enable when depending on `chacha8rand`. You can manually add them to Cargo.toml (`features
-//! = [...]` key) or use a command like `cargo add chacha8rand -F rand_core_0_6`. The features are:
+//! = [...]` key) or use a command like `cargo add chacha8rand -F rand_core_0_9`. The features are:
 //!
 //! * **`std`**: opts out of `#![no_std]`, enables runtime detection of `target_feature`s for higher
 //!   performance on some targets. It does not (currently) affect the API surface, so ideally
@@ -104,12 +104,12 @@
 //!   this feature *always* adds a dependency on `std`, even on targets where `std` isn't needed
 //!   today.
 //! * **`rand_core_0_6`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.6,
-//!   for integration with `rand` v0.8. The upcoming v0.9 release of the rand crates will get
-//!   another feature so that `ChaCha8Rand` can implement both the new and the old versions of these
-//!   traits at the same time.
+//!   for integration with `rand` v0.8.
+//! * **`rand_core_0_9**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.9,
+//!   for integration with `rand` v0.9.
 //!
-//! Neither feature is enabled by default, so you don't need `no-default-features = true` / `cargo
-//! add --no-default-features`. In fact, please don't, because then your code might break if a later
+//! No feature is enabled by default, so you don't need `no-default-features = true` / `cargo add
+//! --no-default-features`. In fact, please don't, because then your code might break if a later
 //! version moves existing functionality under a new on-by-default feature.
 //!
 //! There are also some features with an "unstable" prefix in their name. Anything covered by these
@@ -152,6 +152,8 @@ mod backend;
 mod common_guts;
 #[cfg(feature = "rand_core_0_6")]
 mod rand_core_0_6;
+#[cfg(feature = "rand_core_0_9")]
+mod rand_core_0_9;
 mod scalar;
 #[cfg(test)]
 mod tests;
