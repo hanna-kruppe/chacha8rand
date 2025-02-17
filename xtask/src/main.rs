@@ -15,7 +15,8 @@ fn main() -> xshell::Result<()> {
     }
 }
 
-const WASM_RUNNER_ENV: &str = "CARGO_TARGET_WASM32_WASIP1_RUNNER";
+const WASM_RUNNER_KEY: &str = "CARGO_TARGET_WASM32_WASIP1_RUNNER";
+const WASM_RUNNER_VAL: &str = "cargo bin wasmtime";
 
 fn test_matrix() -> xshell::Result<()> {
     let sh = Shell::new()?;
@@ -37,7 +38,7 @@ fn test_matrix() -> xshell::Result<()> {
         // variable overrides the flags from the config files.
         cmd!(
             sh,
-            "cross test --target {target} --all-targets --all-features"
+            "cargo bin cross test --target {target} --all-targets --all-features"
         )
         .env("RUSTFLAGS", "")
         .run()?;
@@ -54,7 +55,7 @@ fn test_matrix() -> xshell::Result<()> {
     // Test wasm with and without simd128
     for flags in ["", "-Ctarget-feature=+simd128"] {
         cmd!(sh, "cargo test --target wasm32-wasip1")
-            .env(WASM_RUNNER_ENV, "wasmtime")
+            .env(WASM_RUNNER_KEY, WASM_RUNNER_VAL)
             .env("RUSTFLAGS", flags)
             .run()?;
     }
@@ -68,7 +69,7 @@ fn bench_in_wasmtime() -> xshell::Result<()> {
         "cargo run --release --target wasm32-wasip1 -p benchmarks"
     )
     .env("RUSTFLAGS", "-Ctarget-feature=+simd128")
-    .env(WASM_RUNNER_ENV, "wasmtime")
+    .env(WASM_RUNNER_KEY, WASM_RUNNER_VAL)
     .run()?;
     Ok(())
 }
