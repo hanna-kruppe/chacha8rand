@@ -8,11 +8,11 @@ use crate::{
     Backend, Buffer,
 };
 
-pub fn detect() -> Option<Backend> {
+pub(crate) fn detect() -> Option<Backend> {
     Some(Backend::new(fill_buf))
 }
 
-pub fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     let mut ctr = from_elems([0, 1, 2, 3]);
     for group in 0..4 {

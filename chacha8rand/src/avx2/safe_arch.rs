@@ -3,7 +3,7 @@ use core::arch::x86 as arch;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64 as arch;
 
-pub use arch::__m256i;
+pub(crate) use arch::__m256i;
 use arch::{
     __m128i, _mm256_add_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_slli_epi32,
     _mm256_srli_epi32, _mm256_storeu2_m128i, _mm256_xor_si256,

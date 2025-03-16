@@ -872,7 +872,7 @@ macro_rules! arch_backends {
 
             #[cfg(not($cond))]
             mod $name {
-                pub fn detect() -> Option<crate::Backend> {
+                pub(crate) fn detect() -> Option<crate::Backend> {
                     None
                 }
             }

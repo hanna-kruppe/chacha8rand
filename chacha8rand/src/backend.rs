@@ -8,6 +8,7 @@ use crate::Buffer;
 #[derive(Clone, Copy)]
 #[allow(
     missing_docs,
+    unreachable_pub,
     reason = "internal API only exposed unstably for benchmarks"
 )]
 pub struct Backend {

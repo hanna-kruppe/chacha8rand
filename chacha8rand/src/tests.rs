@@ -310,7 +310,7 @@ fn check_byte_output(output: impl IntoIterator<Item = u8>) {
     assert_eq!(i, SAMPLE_OUTPUT_U64LE.len() * 8, "output ended prematurely");
 }
 
-pub const SAMPLE_SEED: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
+const SAMPLE_SEED: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
 
 #[rustfmt::skip]
 const SAMPLE_OUTPUT_U64LE: &[u64] = &[
