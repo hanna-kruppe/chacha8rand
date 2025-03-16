@@ -23,19 +23,31 @@ fn test_matrix() -> xshell::Result<()> {
 
     // Any combination of features should work and run tests.
     cmd!(sh, "cargo hack test -p chacha8rand --feature-powerset").run()?;
+    // ... and also be warning-free
+    cmd!(
+        sh,
+        "cargo hack clippy -p chacha8rand --feature-powerset -- --deny warnings"
+    )
+    .run()?;
 
-    let targets = [
+    let cross_targets = [
         "aarch64-unknown-linux-gnu", // for neon
         "i586-unknown-linux-gnu",    // for x86 without sse2 statically enabled
         "i686-unknown-linux-gnu",    // for 32-bit compatibility in sse2 and avx2 modules
         "s390x-unknown-linux-gnu",   // for big endian
         "x86_64-unknown-linux-gnu",  // for sse2 and avx2
     ];
-    for target in targets {
-        // Testing the x86_64 target on an x86_64 host means rustflags from $CARGO_HOME/.config.toml
-        // are picked up within the container. This is a problem if those contain
-        // -Clink-arg=-fuse-lld, which doesn't work inside the container. Setting the RUSTFLAGS
-        // variable overrides the flags from the config files.
+    for target in cross_targets {
+        // Run clippy for each target to catch issues in cfg'd out code, with -Dwarnings so they
+        // won't just be drowned in a sea of output.
+        cmd!(
+            sh,
+            "cargo clippy --target {target} -p chacha8rand --all-features -- --deny warnings"
+        )
+        .run()?;
+
+        // Overriding RUSTFLAGS for `cross test` prevents the container from picking up RUSTFLAGS
+        // meant for the host (e.g., from $CARGO_HOME/config.toml) which can break stuff.
         cmd!(
             sh,
             "cargo bin cross test --target {target} --all-targets --all-features"
@@ -48,7 +60,7 @@ fn test_matrix() -> xshell::Result<()> {
     // the avx2 backend.
     cmd!(
         sh,
-        "cargo check --target x86_64-unknown-none -p chacha8rand"
+        "cargo clippy --target x86_64-unknown-none -p chacha8rand"
     )
     .run()?;
 
@@ -58,6 +70,8 @@ fn test_matrix() -> xshell::Result<()> {
             .env(WASM_RUNNER_KEY, WASM_RUNNER_VAL)
             .env("RUSTFLAGS", flags)
             .run()?;
+        // What's that? You guessed it: more clippy!
+        cmd!(sh, "cargo clippy --target wasm32-wasip1 -- --deny warnings").run()?;
     }
     Ok(())
 }
