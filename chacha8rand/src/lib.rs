@@ -21,7 +21,7 @@
 //! use chacha8rand::ChaCha8Rand;
 //!
 //! let mut seed = [0; 32];
-//! getrandom::getrandom(&mut seed).expect("getrandom failure is 'highly unlikely'");
+//! getrandom::fill(&mut seed).unwrap();
 //! let mut rng = ChaCha8Rand::new(&seed);
 //! // Now we can make random choices
 //! let heads_or_tails = if rng.read_u32() & 1 == 0 { "heads" } else { "tails" };
@@ -461,9 +461,9 @@ impl ChaCha8Rand {
     ///
     /// ```ignore
     /// // This example is not tested automatically because it doesn't
-    /// // compile when the `rand_core_0_6` feature is disabled.
-    /// use chacha8rand::ChaCha8Rand; // with rand_core_0_6 feature
-    /// use rand::prelude::*; // rand version 0.8
+    /// // compile when the `rand_core_0_9` feature is disabled.
+    /// use chacha8rand::ChaCha8Rand; // with rand_core_0_9 feature
+    /// use rand::prelude::*; // rand version 0.9
     ///
     /// let mut rng = ChaCha8Rand::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456");
     /// if rng.gen_ratio(2, 3) {
@@ -682,7 +682,7 @@ impl ChaCha8Rand {
     /// // A low-entropy seed (current time, chosen by humans, etc.), reusing a seed,
     /// // or cloning the generator leads to many colliding "UUIDs".
     /// let mut seed = [0; 32];
-    /// getrandom::getrandom(&mut seed).expect("getrandom failure is 'highly unlikely'");
+    /// getrandom::fill(&mut seed).unwrap();
     /// let mut rng = ChaCha8Rand::new(&seed);
     /// let mut uuid_bytes = [0u8; 16];
     /// rng.read_bytes(&mut uuid_bytes);
