@@ -60,7 +60,7 @@ fn test_matrix() -> xshell::Result<()> {
     // the avx2 backend.
     cmd!(
         sh,
-        "cargo clippy --target x86_64-unknown-none -p chacha8rand"
+        "cargo clippy --target x86_64-unknown-none -p chacha8rand -- --deny warnings"
     )
     .run()?;
 
