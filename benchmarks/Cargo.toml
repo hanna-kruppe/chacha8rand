@@ -6,6 +6,6 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-chacha8rand = { path = "../chacha8rand", features = ["std", "unstable_internals", "rand_core_0_9"] }
+chacha8rand = { path = "../chacha8rand", features = ["std", "rand_core_0_9"] }
 rand_core = "0.9"
 rand_chacha = "0.9"

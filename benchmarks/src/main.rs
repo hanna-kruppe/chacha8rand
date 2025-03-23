@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chacha8rand::{Backend, ChaCha8Rand};
+use chacha8rand::ChaCha8Rand;
 use rand_core::{RngCore, SeedableRng};
 
 fn main() {
@@ -29,27 +29,10 @@ fn main() {
 }
 
 fn collect_benchmarks() -> Vec<Benchmark> {
-    let mut backends = Vec::new();
-    backends.push(("scalar", Backend::scalar()));
-    if let Some(sse2) = Backend::x86_sse2() {
-        backends.push(("sse2", sse2));
-    }
-    if let Some(avx2) = Backend::x86_avx2() {
-        backends.push(("avx2", avx2));
-    }
-    if let Some(neon) = Backend::aarch64_neon() {
-        backends.push(("neon", neon));
-    }
-    if let Some(simd128) = Backend::wasm32_simd128() {
-        backends.push(("simd128", simd128));
-    }
-
     let mut benchmarks = Vec::new();
 
-    for (backend_name, backend) in &backends {
-        benchmarks.push(bench_u32s(backend_name, *backend, 0));
-        benchmarks.push(bench_u32s(backend_name, *backend, 1));
-    }
+    benchmarks.push(bench_u32s(0));
+    benchmarks.push(bench_u32s(1));
     benchmarks.push(bench_next_u32_rand_chacha());
 
     // Each iteration generates 1024 bytes internally, but 32 of those are new key material, so
@@ -58,12 +41,8 @@ fn collect_benchmarks() -> Vec<Benchmark> {
     // we also benchmark with an odd buffer size that's as close to 10% of the larger size as
     // possible.
     let interesting_read_sizes = [99, 1024 - 32];
-    for (backend_name, backend) in &backends {
-        for read_size in interesting_read_sizes {
-            benchmarks.push(bench_bulk(backend_name, *backend, vec![0; read_size]));
-        }
-    }
     for read_size in interesting_read_sizes {
+        benchmarks.push(bench_bulk(vec![0; read_size]));
         benchmarks.push(bench_bulk_rand_chacha(vec![0; read_size]));
     }
 
@@ -141,9 +120,8 @@ fn one_sample(bench: &mut Benchmark) -> (Duration, u32) {
 
 const SEED: &[u8; 32] = b"thisisjustabenchthisisjustabench";
 
-fn bench_u32s(backend_name: &str, backend: Backend, skip_first_bytes: usize) -> Benchmark {
-    let backend = black_box(backend);
-    let mut rng = ChaCha8Rand::with_backend(SEED, backend);
+fn bench_u32s(skip_first_bytes: usize) -> Benchmark {
+    let mut rng = ChaCha8Rand::new(SEED);
 
     // Skipping a 1, 2, or 3 number of bytes means that `read_u32` calls that need to refill the
     // buffer *might* get slower because they do two small memcpys instead of one.
@@ -151,7 +129,7 @@ fn bench_u32s(backend_name: &str, backend: Backend, skip_first_bytes: usize) -> 
     rng.read_bytes(&mut skip_buf[..skip_first_bytes]);
 
     Benchmark {
-        label: format!("u32/skip{skip_first_bytes}b/{backend_name}"),
+        label: format!("u32/skip{skip_first_bytes}b"),
         work: Box::new(move |n| {
             for _ in 0..n {
                 black_box(rng.read_u32());
@@ -172,12 +150,12 @@ fn bench_next_u32_rand_chacha() -> Benchmark {
     }
 }
 
-fn bench_bulk(backend_name: &str, backend: Backend, mut dest: Vec<u8>) -> Benchmark {
-    let label = format!("bulk{n}/{backend_name}", n = dest.len());
+fn bench_bulk(mut dest: Vec<u8>) -> Benchmark {
+    let label = format!("bulk{n}", n = dest.len());
     Benchmark {
         label,
         work: Box::new(move |n| {
-            let mut rng = ChaCha8Rand::with_backend(SEED, backend);
+            let mut rng = ChaCha8Rand::new(SEED);
             for _ in 0..n {
                 rng.read_bytes(&mut dest);
                 black_box(&mut dest);

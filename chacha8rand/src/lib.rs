@@ -158,9 +158,6 @@ mod scalar;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "unstable_internals")]
-pub use backend::Backend;
-#[cfg(not(feature = "unstable_internals"))]
 use backend::Backend;
 
 const BUF_TOTAL_LEN: usize = 1024;
@@ -383,16 +380,6 @@ impl ChaCha8Rand {
             .or_else(neon::detect)
             .or_else(simd128::detect)
             .unwrap_or_else(scalar::backend);
-        Self::with_backend_impl(seed, backend)
-    }
-
-    #[cfg(feature = "unstable_internals")]
-    #[allow(
-        missing_docs,
-        reason = "internal API only exposed unstably for benchmarks"
-    )]
-    #[inline]
-    pub fn with_backend(seed: &[u8; 32], backend: Backend) -> Self {
         Self::with_backend_impl(seed, backend)
     }
 
@@ -902,34 +889,4 @@ arch_backends! {
 
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
     mod simd128;
-}
-
-// These methods only exist to enable the benchmark (compiled as separate crate) to override backend
-// selection and compare performance. It's not in the `backend` module to minimize that code that
-// has to worry about upholding `Backend`'s invariant.
-#[cfg(feature = "unstable_internals")]
-#[allow(
-    missing_docs,
-    reason = "internal APIs only exposed unstably for benchmarks"
-)]
-impl Backend {
-    pub fn scalar() -> Self {
-        scalar::backend()
-    }
-
-    pub fn x86_avx2() -> Option<Self> {
-        avx2::detect()
-    }
-
-    pub fn x86_sse2() -> Option<Self> {
-        sse2::detect()
-    }
-
-    pub fn aarch64_neon() -> Option<Self> {
-        neon::detect()
-    }
-
-    pub fn wasm32_simd128() -> Option<Self> {
-        simd128::detect()
-    }
 }

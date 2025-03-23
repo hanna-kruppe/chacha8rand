@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Support for rand v0.9 (opt-in feature `rand_core_0_9`)
 
+### Removed
+
+* Crate feature `unstable_internals` which was for internal use only and is no
+  longer needed. Its existence and functionality were explicitly not covered by
+  SemVer.
+
 ## 0.1.0 - 2024-10-14
 
 Initial release.

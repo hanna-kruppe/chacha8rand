@@ -22,7 +22,6 @@ default = []
 rand_core_0_6 = ["dep:rand_core_0_6"]
 rand_core_0_9 = ["dep:rand_core_0_9"]
 std = []
-unstable_internals = []
 
 [dependencies]
 arrayref = "0.3.9"
