@@ -146,8 +146,9 @@ use core::{array, cmp, error::Error, fmt};
 #[cfg(feature = "std")]
 extern crate std;
 
-use arrayref::array_ref;
+use array_ref::slice_array;
 
+mod array_ref;
 mod backend;
 mod common_guts;
 #[cfg(feature = "rand_core_0_6")]
@@ -319,12 +320,12 @@ struct Buffer {
 impl Buffer {
     #[inline]
     fn output(&self) -> &[u8; BUF_OUTPUT_LEN] {
-        array_ref![&self.bytes, 0, BUF_OUTPUT_LEN]
+        slice_array::<BUF_OUTPUT_LEN>(&self.bytes, 0)
     }
 
     #[inline]
     fn new_key(&self) -> &[u8; 32] {
-        array_ref![&self.bytes, BUF_OUTPUT_LEN, 32]
+        slice_array::<32>(&self.bytes, BUF_OUTPUT_LEN)
     }
 }
 
@@ -538,7 +539,7 @@ impl ChaCha8Rand {
         if self.bytes_consumed > BUF_OUTPUT_LEN - N {
             return self.read_u32_near_buffer_end();
         }
-        let bytes = *array_ref![self.buf.output(), self.bytes_consumed, N];
+        let bytes = *slice_array::<N>(self.buf.output(), self.bytes_consumed);
         self.bytes_consumed += N;
         u32::from_le_bytes(bytes)
     }
@@ -625,7 +626,7 @@ impl ChaCha8Rand {
         if self.bytes_consumed > BUF_OUTPUT_LEN - N {
             return self.read_u64_near_buffer_end();
         }
-        let bytes = *array_ref![self.buf.output(), self.bytes_consumed, N];
+        let bytes = *slice_array::<N>(self.buf.output(), self.bytes_consumed);
         self.bytes_consumed += N;
         u64::from_le_bytes(bytes)
     }
@@ -836,7 +837,7 @@ impl ChaCha8Rand {
 }
 
 fn seed_from_bytes(bytes: &[u8; 32]) -> [u32; 8] {
-    array::from_fn(|i| u32::from_le_bytes(*array_ref![bytes, 4 * i, 4]))
+    array::from_fn(|i| u32::from_le_bytes(*slice_array(bytes, 4 * i)))
 }
 
 fn seed_to_bytes(seed: &[u32; 8]) -> [u8; 32] {

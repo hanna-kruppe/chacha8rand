@@ -1,6 +1,5 @@
-use arrayref::array_mut_ref;
-
 use crate::{
+    array_ref::array_chunks_mut,
     common_guts::{eight_rounds, init_state},
     sse2::safe_arch::{
         __m128i, add_u32, from_elems, shift_left_u32, shift_right_u32, splat, storeu, xor,
@@ -15,7 +14,7 @@ pub(crate) fn detect() -> Option<Backend> {
 pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     let mut ctr = from_elems([0, 1, 2, 3]);
-    for group in 0..4 {
+    for group in array_chunks_mut::<256, 1024>(buf) {
         let mut x = init_state(ctr, key, splat);
 
         eight_rounds(&mut x, quarter_round);
@@ -24,10 +23,11 @@ pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = add_u32(x[i], splat(key[i - 4]));
         }
 
-        let group_buf = array_mut_ref![buf, group * 256, 256];
-        for (i, &xi) in x.iter().enumerate() {
-            storeu(xi, array_mut_ref![group_buf, i * 16, 16]);
-        }
+        array_chunks_mut::<16, 256>(group)
+            .zip(x)
+            .for_each(|(dest, xi)| {
+                storeu(xi, dest);
+            });
 
         ctr = add_u32(ctr, splat(4));
     }

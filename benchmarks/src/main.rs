@@ -157,7 +157,7 @@ fn bench_u64s() -> Benchmark {
     let mut rng = ChaCha8Rand::new(SEED);
 
     Benchmark {
-        label: format!("u64"),
+        label: "u64".to_owned(),
         work: Box::new(move |n| {
             for _ in 0..n {
                 black_box(rng.read_u64());

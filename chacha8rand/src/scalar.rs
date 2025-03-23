@@ -1,8 +1,8 @@
 use crate::{
+    array_ref::{array_chunks_mut, slice_array_mut},
     common_guts::{eight_rounds, init_state},
     Backend, Buffer,
 };
-use arrayref::array_mut_ref;
 
 pub(crate) fn backend() -> Backend {
     Backend::new(fill_buf)
@@ -11,11 +11,10 @@ pub(crate) fn backend() -> Backend {
 #[inline(never)]
 fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
-    for quad in 0..4 {
-        let quad_buf = array_mut_ref![buf, quad * 256, 256];
+    for (i, quad) in array_chunks_mut::<256, 1024>(buf).enumerate() {
         for block in 0..4 {
-            let ctr = (quad * 4 + block) as u32;
-            block_strided(key, ctr, array_mut_ref![quad_buf, 4 * block, 256 - 12]);
+            let ctr = (i * 4 + block) as u32;
+            block_strided(key, ctr, slice_array_mut::<{ 256 - 12 }>(quad, 4 * block));
         }
     }
 }
@@ -30,7 +29,7 @@ fn block_strided(key: &[u32; 8], ctr: u32, out: &mut [u8; 244]) {
     }
 
     for (i, xi) in x.iter().enumerate() {
-        *array_mut_ref![out, i * 16, 4] = xi.to_le_bytes();
+        *slice_array_mut::<4>(out, i * 16) = xi.to_le_bytes();
     }
 }
 

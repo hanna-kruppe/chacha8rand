@@ -1,9 +1,9 @@
 use crate::{
+    array_ref::{array_chunks_mut, slice_array_mut},
     avx2::safe_arch::{Avx2, __m256i},
     common_guts::{eight_rounds, init_state},
     Backend, Buffer,
 };
-use arrayref::{array_mut_ref, mut_array_refs};
 
 pub(crate) fn detect() -> Option<Backend> {
     if std::is_x86_feature_detected!("avx2") {
@@ -30,7 +30,7 @@ pub(crate) unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let mut ctr = avx2.elems([0, 1, 2, 3, 4, 5, 6, 7]);
     let splat = |x| avx2.splat(x);
 
-    for eight_blocks in 0..2 {
+    for eight_blocks in array_chunks_mut::<512, 1024>(buf) {
         let mut x = init_state(ctr, key, splat);
 
         eight_rounds(
@@ -43,11 +43,12 @@ pub(crate) unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = avx2.add_u32(x[i], splat(key[i - 4]));
         }
 
-        let out: &mut [u8; 512] = array_mut_ref![buf, eight_blocks * 512, 512];
-        let (out_lo, out_hi) = mut_array_refs![out, 256, 256];
+        let (out_lo, out_hi) = eight_blocks.split_at_mut(256);
+        let out_lo: &mut [u8; 256] = out_lo.try_into().unwrap();
+        let out_hi: &mut [u8; 256] = out_hi.try_into().unwrap();
         for (i, &xi) in x.iter().enumerate() {
-            let dest_lo: &mut [u8; 16] = array_mut_ref![out_lo, i * 16, 16];
-            let dest_hi: &mut [u8; 16] = array_mut_ref![out_hi, i * 16, 16];
+            let dest_lo: &mut [u8; 16] = slice_array_mut::<16>(out_lo, i * 16);
+            let dest_hi: &mut [u8; 16] = slice_array_mut::<16>(out_hi, i * 16);
             avx2.storeu2(xi, dest_hi, dest_lo);
         }
 

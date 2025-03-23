@@ -1,8 +1,7 @@
 use core::arch::aarch64::uint32x4_t;
 
-use arrayref::array_mut_ref;
-
 use crate::{
+    array_ref::array_chunks_mut,
     common_guts::{eight_rounds, init_state},
     neon::safe_arch::{
         add_u32, reinterpret_u32x4_as_u8x16, reinterpret_u8x16_as_u32x4, shift_left_u32, splat,
@@ -23,7 +22,7 @@ pub(crate) fn detect() -> Option<Backend> {
 pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     let mut ctr = u32x4_from_elems([0, 1, 2, 3]);
-    for group in 0..4 {
+    for group in array_chunks_mut::<256, 1024>(buf) {
         let mut x = init_state(ctr, key, splat);
 
         eight_rounds(&mut x, quarter_round);
@@ -32,13 +31,11 @@ pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = add_u32(x[i], splat(key[i - 4]));
         }
 
-        let group_buf = array_mut_ref![buf, group * 256, 256];
-        for (i, &xi) in x.iter().enumerate() {
-            store_u8x16(
-                reinterpret_u32x4_as_u8x16(xi),
-                array_mut_ref![group_buf, 16 * i, 16],
-            );
-        }
+        array_chunks_mut::<16, 256>(group)
+            .zip(x)
+            .for_each(|(dest, xi)| {
+                store_u8x16(reinterpret_u32x4_as_u8x16(xi), dest);
+            });
 
         ctr = add_u32(ctr, splat(4));
     }

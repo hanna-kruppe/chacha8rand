@@ -1,8 +1,7 @@
 use core::arch::wasm32::{u32x4, u32x4_add, u32x4_shl, u32x4_shr, v128, v128_xor};
 
-use arrayref::array_mut_ref;
-
 use crate::{
+    array_ref::array_chunks_mut,
     common_guts::{eight_rounds, init_state},
     simd128::safe_arch::{splat, store_as_u8x16},
     Backend, Buffer,
@@ -15,7 +14,7 @@ pub(crate) fn detect() -> Option<Backend> {
 pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     let mut ctr = u32x4(0, 1, 2, 3);
-    for group in 0..4 {
+    for group in array_chunks_mut::<256, 1024>(buf) {
         let mut x = init_state(ctr, key, splat);
 
         eight_rounds(&mut x, quarter_round);
@@ -24,10 +23,11 @@ pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
             x[i] = u32x4_add(x[i], splat(key[i - 4]));
         }
 
-        let group_buf = array_mut_ref![buf, group * 256, 256];
-        for (i, &xi) in x.iter().enumerate() {
-            store_as_u8x16(xi, array_mut_ref![group_buf, 16 * i, 16]);
-        }
+        array_chunks_mut::<16, 256>(group)
+            .zip(x)
+            .for_each(|(dest, xi)| {
+                store_as_u8x16(xi, dest);
+            });
 
         ctr = u32x4_add(ctr, splat(4));
     }
