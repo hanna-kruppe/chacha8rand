@@ -29,18 +29,21 @@ fn main() {
 }
 
 fn collect_benchmarks() -> Vec<Benchmark> {
-    let mut benchmarks = Vec::new();
-
-    benchmarks.push(bench_u32s(0));
-    benchmarks.push(bench_u32s(1));
-    benchmarks.push(bench_next_u32_rand_chacha());
+    let mut benchmarks = vec![
+        bench_u32s(0),
+        bench_u32s(1),
+        bench_next_u32_rand_chacha(),
+        bench_u64s(),
+        bench_next_u64_rand_chacha(),
+    ];
 
     // Each iteration generates 1024 bytes internally, but 32 of those are new key material, so
-    // reading 1024 - 32 bytes is the "best case" buffer size for us (not quite for conventional
-    // chacha20/8 without key erasure). For comparison and to exercise the partial read code path,
-    // we also benchmark with an odd buffer size that's as close to 10% of the larger size as
-    // possible.
-    let interesting_read_sizes = [99, 1024 - 32];
+    // reading 1024 - 32 bytes is the "best case" buffer size for us. For a fairer comparison with
+    // `chacha8_rand` and to exercise the partial read code path, we also benchmark with:
+    // * 16 bytes (smallest interesting read size, probably)
+    // * 99 bytes (as close to 10% of our ideal output size as possible)
+    // * 1024 bytes (more favorable for `rand_chacha`, less favorable for us)
+    let interesting_read_sizes = [16, 99, 1024 - 32, 1024];
     for read_size in interesting_read_sizes {
         benchmarks.push(bench_bulk(vec![0; read_size]));
         benchmarks.push(bench_bulk_rand_chacha(vec![0; read_size]));
@@ -145,6 +148,31 @@ fn bench_next_u32_rand_chacha() -> Benchmark {
         work: Box::new(move |n| {
             for _ in 0..n {
                 black_box(rng.next_u32());
+            }
+        }),
+    }
+}
+
+fn bench_u64s() -> Benchmark {
+    let mut rng = ChaCha8Rand::new(SEED);
+
+    Benchmark {
+        label: format!("u64"),
+        work: Box::new(move |n| {
+            for _ in 0..n {
+                black_box(rng.read_u64());
+            }
+        }),
+    }
+}
+
+fn bench_next_u64_rand_chacha() -> Benchmark {
+    let mut rng = rand_chacha::ChaCha8Rng::from_seed(*SEED);
+    Benchmark {
+        label: "u64/rand_chacha".to_string(),
+        work: Box::new(move |n| {
+            for _ in 0..n {
+                black_box(rng.next_u64());
             }
         }),
     }
