@@ -105,7 +105,7 @@
 //!   today.
 //! * **`rand_core_0_6`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.6,
 //!   for integration with `rand` v0.8.
-//! * **`rand_core_0_9**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.9,
+//! * **`rand_core_0_9`**: implement the `RngCore` and `SeedableRng` traits from `rand_core` v0.9,
 //!   for integration with `rand` v0.9.
 //!
 //! No feature is enabled by default, so you don't need `no-default-features = true` / `cargo add
