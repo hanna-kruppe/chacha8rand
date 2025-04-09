@@ -358,7 +358,7 @@ impl ChaCha8Rand {
     ///
     /// # Examples
     ///
-    /// Reproducing the sample output from [the ChaCha8Rand specification]:
+    /// Reproducing the sample output from [the ChaCha8Rand specification][spec]:
     ///
     /// ```
     /// # use chacha8rand::ChaCha8Rand;
