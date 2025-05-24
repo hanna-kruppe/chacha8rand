@@ -852,10 +852,7 @@ macro_rules! arch_backends {
     ($(#[cfg($cond:meta)] mod $name:ident;)+) => {
         $(
             #[cfg($cond)]
-            mod $name {
-                mod backend;
-                pub(crate) use backend::detect;
-            }
+            mod $name;
 
             #[cfg(not($cond))]
             mod $name {
