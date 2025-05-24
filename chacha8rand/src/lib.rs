@@ -853,7 +853,6 @@ macro_rules! arch_backends {
         $(
             #[cfg($cond)]
             mod $name {
-                mod safe_arch;
                 mod backend;
                 pub(crate) use backend::detect;
             }

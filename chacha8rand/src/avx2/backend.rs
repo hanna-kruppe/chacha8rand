@@ -1,6 +1,15 @@
+#[cfg(target_arch = "x86")]
+use core::arch::x86;
+#[cfg(target_arch = "x86_64")]
+use core::arch::x86_64 as x86;
+
+use x86::{
+    __m128i, __m256i, _mm256_add_epi32, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_slli_epi32,
+    _mm256_srli_epi32, _mm256_storeu2_m128i, _mm256_xor_si256,
+};
+
 use crate::{
     array_ref::{array_chunks_mut, slice_array_mut},
-    avx2::safe_arch::{Avx2, __m256i},
     common_guts::{eight_rounds, init_state},
     Backend, Buffer,
 };
@@ -15,32 +24,19 @@ pub(crate) fn detect() -> Option<Backend> {
     }
 }
 
-/// # Safety
-///
-/// Requires AVX2 target feature. No other safety requirements.
 #[target_feature(enable = "avx2")]
-pub(crate) unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
-    // Since we're already inside a function with `target_feature(enable = "avx2)`, the `expect` is
-    // too late to prevent UB. But there is still a chance that it panics if that UB is triggered,
-    // and the check is basically free compared to the work we're doing below, so it doesn't hurt to
-    // use `expect` here.
-    let avx2 = Avx2::new().expect("AVX2 must be available if this backend is invoked");
-
+pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
-    let mut ctr = avx2.elems([0, 1, 2, 3, 4, 5, 6, 7]);
-    let splat = |x| avx2.splat(x);
+    let mut ctr = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+    let splat = |x: u32| _mm256_set1_epi32(x.cast_signed());
 
     for eight_blocks in array_chunks_mut::<512, 1024>(buf) {
         let mut x = init_state(ctr, key, splat);
 
-        eight_rounds(
-            &mut x,
-            #[inline(always)]
-            |abcd| quarter_round(avx2, abcd),
-        );
+        eight_rounds(&mut x, |abcd| quarter_round(abcd));
 
         for i in 4..12 {
-            x[i] = avx2.add_u32(x[i], splat(key[i - 4]));
+            x[i] = _mm256_add_epi32(x[i], splat(key[i - 4]));
         }
 
         let (out_lo, out_hi) = eight_blocks.split_at_mut(256);
@@ -49,43 +45,53 @@ pub(crate) unsafe fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
         for (i, &xi) in x.iter().enumerate() {
             let dest_lo: &mut [u8; 16] = slice_array_mut::<16>(out_lo, i * 16);
             let dest_hi: &mut [u8; 16] = slice_array_mut::<16>(out_hi, i * 16);
-            avx2.storeu2(xi, dest_hi, dest_lo);
+            let hiaddr: *mut __m128i = dest_hi.as_mut_ptr().cast();
+            let loaddr: *mut __m128i = dest_lo.as_mut_ptr().cast();
+            // SAFETY: this stores 128 bits to each of the two addresses. (There are no alignment
+            // requirements.) Writing to both destinations is OK because both pointers are derived
+            // from distinct `&mut [u8; 16]`, i.e., we're allowed to write 128 bits to both of those
+            // locations.
+            unsafe {
+                _mm256_storeu2_m128i(hiaddr, loaddr, xi);
+            };
         }
 
-        ctr = avx2.add_u32(ctr, splat(8));
+        ctr = _mm256_add_epi32(ctr, splat(8));
     }
 }
 
-#[inline(always)]
-fn quarter_round(avx2: Avx2, [mut a, mut b, mut c, mut d]: [__m256i; 4]) -> [__m256i; 4] {
-    a = avx2.add_u32(a, b);
-    d = avx2.xor(d, a);
-    d = rotl::<16, 16>(avx2, d);
+#[inline]
+#[target_feature(enable = "avx2")]
+fn quarter_round([mut a, mut b, mut c, mut d]: [__m256i; 4]) -> [__m256i; 4] {
+    a = _mm256_add_epi32(a, b);
+    d = _mm256_xor_si256(d, a);
+    d = rotl::<16, 16>(d);
 
-    c = avx2.add_u32(c, d);
-    b = avx2.xor(b, c);
-    b = rotl::<12, 20>(avx2, b);
+    c = _mm256_add_epi32(c, d);
+    b = _mm256_xor_si256(b, c);
+    b = rotl::<12, 20>(b);
 
-    a = avx2.add_u32(a, b);
-    d = avx2.xor(d, a);
-    d = rotl::<8, 24>(avx2, d);
+    a = _mm256_add_epi32(a, b);
+    d = _mm256_xor_si256(d, a);
+    d = rotl::<8, 24>(d);
 
-    c = avx2.add_u32(c, d);
-    b = avx2.xor(b, c);
-    b = rotl::<7, 25>(avx2, b);
+    c = _mm256_add_epi32(c, d);
+    b = _mm256_xor_si256(b, c);
+    b = rotl::<7, 25>(b);
 
     [a, b, c, d]
 }
 
-#[inline(always)]
-fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(avx2: Avx2, x: __m256i) -> __m256i {
+#[inline]
+#[target_feature(enable = "avx2")]
+fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(x: __m256i) -> __m256i {
     // Note: some of these rotations can be implemented as shuffles, but LLVM manages to figure that
     // out by itself, so there's no need to complicate the code.
     const {
         assert!(SH_RIGHT == (32 - SH_LEFT));
     }
-    avx2.xor(
-        avx2.shift_left_u32::<SH_LEFT>(x),
-        avx2.shift_right_u32::<SH_RIGHT>(x),
+    _mm256_xor_si256(
+        _mm256_slli_epi32::<SH_LEFT>(x),
+        _mm256_srli_epi32::<SH_RIGHT>(x),
     )
 }

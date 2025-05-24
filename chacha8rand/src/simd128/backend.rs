@@ -1,9 +1,10 @@
-use core::arch::wasm32::{u32x4, u32x4_add, u32x4_shl, u32x4_shr, v128, v128_xor};
+use core::arch::wasm32::{
+    u32x4, u32x4_add, u32x4_shl, u32x4_shr, u32x4_splat, v128, v128_store, v128_xor,
+};
 
 use crate::{
     array_ref::array_chunks_mut,
     common_guts::{eight_rounds, init_state},
-    simd128::safe_arch::{splat, store_as_u8x16},
     Backend, Buffer,
 };
 
@@ -12,6 +13,8 @@ pub(crate) fn detect() -> Option<Backend> {
 }
 
 pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+    let splat = |x| u32x4_splat(x);
+
     let buf = &mut buf.bytes;
     let mut ctr = u32x4(0, 1, 2, 3);
     for group in array_chunks_mut::<256, 1024>(buf) {
@@ -26,7 +29,11 @@ pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
         array_chunks_mut::<16, 256>(group)
             .zip(x)
             .for_each(|(dest, xi)| {
-                store_as_u8x16(xi, dest);
+                // SAFETY: stores 16 bytes through the pointer (without alignment requirement),
+                // which is OK because we pass a `&mut [u8; 16]`.
+                unsafe {
+                    v128_store(dest.as_mut_ptr().cast::<v128>(), xi);
+                }
             });
 
         ctr = u32x4_add(ctr, splat(4));
