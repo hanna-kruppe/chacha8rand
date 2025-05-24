@@ -239,7 +239,7 @@ mod rand06 {
 
     use crate::ChaCha8Rand;
 
-    use super::{check_byte_output, SAMPLE_OUTPUT_U64LE, SAMPLE_SEED};
+    use super::{SAMPLE_OUTPUT_U64LE, SAMPLE_SEED, check_byte_output};
 
     #[test]
     fn next_u32() {
@@ -272,7 +272,7 @@ mod rand09 {
 
     use crate::ChaCha8Rand;
 
-    use super::{check_byte_output, SAMPLE_OUTPUT_U64LE, SAMPLE_SEED};
+    use super::{SAMPLE_OUTPUT_U64LE, SAMPLE_SEED, check_byte_output};
 
     #[test]
     fn next_u32() {

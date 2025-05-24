@@ -1,7 +1,7 @@
 [package]
 name = "chacha8rand"
 version = "0.1.1"
-edition = "2021"
+edition = "2024"
 rust-version = "1.87"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hanna-kruppe/chacha8rand"
@@ -44,7 +44,6 @@ uuid = "1.10.0"
 
 [lints.rust]
 unreachable_pub = "warn"
-unsafe_op_in_unsafe_fn = "warn"
 
 [package.metadata.docsrs]
 features = ["rand_core_0_6"]

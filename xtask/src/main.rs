@@ -1,5 +1,5 @@
 use xflags::xflags;
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 
 xflags! {
     cmd xtask {
