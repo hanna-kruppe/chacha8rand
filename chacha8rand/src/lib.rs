@@ -155,7 +155,6 @@ mod common_guts;
 mod rand_core_0_6;
 #[cfg(feature = "rand_core_0_9")]
 mod rand_core_0_9;
-mod scalar;
 #[cfg(test)]
 mod tests;
 
@@ -372,16 +371,7 @@ impl ChaCha8Rand {
     /// [spec]: https://c2sp.org/chacha8rand
     #[inline]
     pub fn new(seed: &[u8; 32]) -> Self {
-        // On x86, we prefer AVX2 over SSE2 when both are available. The other SIMD backends aren't
-        // really ordered by preference because they're for mutually exclusive target platforms, but
-        // it's less of a mess to chain them like this than to replicate the `cfg` soup. We only use
-        // the scalar backend if none of the SIMD backends are available.
-        let backend = avx2::detect()
-            .or_else(sse2::detect)
-            .or_else(neon::detect)
-            .or_else(simd128::detect)
-            .unwrap_or_else(scalar::backend);
-        Self::with_backend_impl(seed, backend)
+        Self::with_backend_impl(seed, backend::detect_best())
     }
 
     fn with_backend_impl(seed: &[u8; 32], backend: Backend) -> Self {
@@ -846,44 +836,4 @@ fn seed_to_bytes(seed: &[u32; 8]) -> [u8; 32] {
         bytes[4 * i..][..4].copy_from_slice(&word.to_le_bytes());
     }
     bytes
-}
-
-macro_rules! arch_backends {
-    ($(#[cfg($cond:meta)] mod $name:ident;)+) => {
-        $(
-            #[cfg($cond)]
-            mod $name;
-
-            #[cfg(not($cond))]
-            mod $name {
-                pub(crate) fn detect() -> Option<crate::Backend> {
-                    None
-                }
-            }
-        )+
-    };
-}
-
-arch_backends! {
-    // This backend uses dynamic feature detection, so it's disabled in no_std mode and only gated
-    // on `target_arch`. In theory it could also be enabled in no_std mode when AVX2 is statically
-    // enabled, but that would probably complicate some unsafe code which seems like a bad trade.
-    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), feature = "std"))]
-    mod avx2;
-
-    // For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
-    // also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high
-    // chance that AVX2 is available at runtime.
-    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature = "sse2"))]
-    mod sse2;
-
-    // The neon backend is limited to little-endian because the core::arch intrinsics currently
-    // don't work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they
-    // worked, it's a pretty obscure target and difficult to test for (e.g., `cross` doesn't
-    // currently support it) so I'm inclined to leave this out until someone champions it.
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
-    mod neon;
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    mod simd128;
 }

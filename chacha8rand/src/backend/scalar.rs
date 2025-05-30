@@ -1,15 +1,11 @@
 use crate::{
-    Backend, Buffer,
+    Buffer,
     array_ref::{array_chunks_mut, slice_array_mut},
     common_guts::{eight_rounds, init_state},
 };
 
-pub(crate) fn backend() -> Backend {
-    Backend::new(fill_buf)
-}
-
 #[inline(never)]
-fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     for (i, quad) in array_chunks_mut::<256, 1024>(buf).enumerate() {
         for block in 0..4 {
