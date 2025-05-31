@@ -1,26 +1,30 @@
 use core::arch::aarch64::{
-    uint32x4_t, uint8x16_t, vaddq_u32, vcombine_u32, vcombine_u8, vcreate_u32, vcreate_u8,
-    vdupq_n_u32, veorq_u32, vqtbl1q_u8, vreinterpretq_u16_u32, vreinterpretq_u32_u16,
-    vreinterpretq_u32_u8, vreinterpretq_u8_u32, vrev32q_u16, vshlq_n_u32, vsriq_n_u32, vst1q_u8,
+    uint8x16_t, uint32x4_t, vaddq_u32, vcombine_u8, vcombine_u32, vcreate_u8, vcreate_u32,
+    vdupq_n_u32, veorq_u32, vqtbl1q_u8, vreinterpretq_u8_u32, vreinterpretq_u16_u32,
+    vreinterpretq_u32_u8, vreinterpretq_u32_u16, vrev32q_u16, vshlq_n_u32, vsriq_n_u32, vst1q_u8,
 };
 
 use crate::{
+    Backend, Buffer,
     array_ref::array_chunks_mut,
     common_guts::{eight_rounds, init_state},
-    Backend, Buffer,
 };
 
 pub(crate) fn detect() -> Option<Backend> {
-    // This whole module is `#[cfg]`-gated on neon being available, but let's double-check.
-    const {
-        assert!(cfg!(target_feature = "neon"));
+    #[cfg(feature = "std")]
+    let has_neon = std::arch::is_aarch64_feature_detected!("neon");
+    #[cfg(not(feature = "std"))]
+    let has_neon = cfg!(target_feature = "neon");
+    if has_neon {
+        // SAFETY: `fill_buf` is safe to call because neon is available.
+        Some(unsafe { Backend::new_unchecked(fill_buf) })
+    } else {
+        None
     }
-    // SAFETY: `fill_buf` is safe to call because we checked that neon is available (see above).
-    Some(unsafe { Backend::new_unchecked(fill_buf) })
 }
 
 #[target_feature(enable = "neon")]
-pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let splat = |x| vdupq_n_u32(x);
 
     let buf = &mut buf.bytes;
@@ -108,7 +112,7 @@ fn rotl<const SH_LEFT: i32, const SH_RIGHT: i32>(x: uint32x4_t) -> uint32x4_t {
     vsriq_n_u32::<SH_RIGHT>(vshlq_n_u32::<SH_LEFT>(x), x)
 }
 
-pub(crate) fn store_u8x16(x: uint8x16_t, dest: &mut [u8; 16]) {
+fn store_u8x16(x: uint8x16_t, dest: &mut [u8; 16]) {
     // SAFETY: Stores 128 bits through the pointer (no alignment requirement), which is OK because
     // it's a mutable reference to `[u8; 16]`.
     unsafe {

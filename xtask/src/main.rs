@@ -46,14 +46,18 @@ fn test_matrix() -> xshell::Result<()> {
         )
         .run()?;
 
-        // Overriding RUSTFLAGS for `cross test` prevents the container from picking up RUSTFLAGS
-        // meant for the host (e.g., from $CARGO_HOME/config.toml) which can break stuff.
-        cmd!(
-            sh,
-            "cargo bin cross test --target {target} --all-targets --all-features"
-        )
-        .env("RUSTFLAGS", "")
-        .run()?;
+        // Run tests both with and without crate features to exercise static vs. dynamic feature
+        // detection.
+        for feat in ["--no-default-features", "--all-features"] {
+            // Overriding RUSTFLAGS for `cross test` prevents the container picking up RUSTFLAGS
+            // meant for the host (e.g., from $CARGO_HOME/config.toml) which can break stuff.
+            cmd!(
+                sh,
+                "cargo bin cross test --target {target} --all-targets {feat}"
+            )
+            .env("RUSTFLAGS", "")
+            .run()?;
+        }
     }
     // x86_64-unknown-none is an x86 target without std, so it can't *run* the tests but it's useful
     // as a smoke test for no_std support, especially w.r.t. the use of std for feature detection in

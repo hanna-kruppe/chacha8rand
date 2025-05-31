@@ -29,17 +29,24 @@ macro_rules! test_backends {
     };
 }
 
+// For target_feature-dependent backends, we assume the tests are run on a machine that supports
+// them, but have to account for whether the library can statically or dynamically detect them.
 test_backends! {
     scalar => crate::backend::scalar();
-    #[cfg(any(
-        target_arch = "x86_64",
-        // because we have no runtime detection for sse2
-        all(target_arch = "x86", target_feature = "sse2"),
+    #[cfg(all(
+        any(target_arch = "x86_64", target_arch = "x86"),
+        any(target_feature = "sse2", feature = "std"),
     ))]
     sse2 => crate::backend::sse2::detect().expect("this test requires sse2");
-    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), feature = "std"))]
+    #[cfg(all(
+        any(target_arch = "x86_64", target_arch = "x86"),
+        any(target_feature = "avx2", feature = "std"),
+    ))]
     avx2 => crate::backend::avx2::detect().expect("this test requires avx2");
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(
+        target_arch = "aarch64",
+        any(target_feature = "neon", feature = "std"),
+    ))]
     neon => crate::backend::neon::detect().expect("this test requires neon");
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
     simd128 => crate::backend::simd128::detect().expect("this test requires simd128");

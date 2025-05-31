@@ -219,16 +219,16 @@ const BUF_OUTPUT_LEN: usize = BUF_TOTAL_LEN - 32;
 ///
 /// # SIMD Backends
 ///
-/// Like the Go version, this crate uses 128-bit SIMD for better performance on x86_64 (SSE2
-/// instructions) and AArch64 (NEON, [little-endian only for now][aarch64be-neon]). Of course, there
-///  is also a portable implementation for all other platforms, which is slower in microbenchmarks
-/// but still plenty fast enough for most use cases.
+/// This crate has all the same SIMD code paths as Go 1.23 and then some more:
 ///
-/// Unlike Go (version 1.23), this crate also uses SIMD on 32-bit x86 targets and Webassembly with
-/// the `simd128` feature. There's also a AVX2 backend for 256-bit SIMD on x86 and x86_64. This
-/// backend uses runtime feature detection (if the `std` feature is enabled) so you don't have to
-/// fiddle with `-Ctarget-feature` and risk the program not working on some older CPUs. Other
-/// instruction sets and more runtime feature detection may be added in the future.
+/// * SSE2 and AVX2 on x86_64 and 32-bit x86
+/// * NEON on AArch64 ([little-endian only for now][aarch64be-neon])
+/// * simd128 on Webassembly
+///
+/// All backends except Webassembly support runtime feature detection with the `std` crate feature.
+/// More backends may be added in the future as Rust stabilizes the corresponding `core::arch`
+/// intrinsics. Of course, there's also a portable scalar backend for all platforms without SIMD
+/// backends.
 ///
 /// [aarch64be-neon]: https://github.com/rust-lang/stdarch/issues/1484
 /// [crate-features]: ./index.html#crate-features

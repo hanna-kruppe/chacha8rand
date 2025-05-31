@@ -15,7 +15,11 @@ use crate::{
 };
 
 pub(crate) fn detect() -> Option<Backend> {
-    if std::is_x86_feature_detected!("avx2") {
+    #[cfg(feature = "std")]
+    let has_avx2 = std::is_x86_feature_detected!("avx2");
+    #[cfg(not(feature = "std"))]
+    let has_avx2 = cfg!(target_feature = "avx2");
+    if has_avx2 {
         // SAFETY: `fill_buf` is only unsafe because it enables the AVX2 `target_feature`, and we've
         // ensured that AVX2 is available, so it's now effectively a safe function.
         unsafe { Some(Backend::new_unchecked(fill_buf)) }
@@ -25,7 +29,7 @@ pub(crate) fn detect() -> Option<Backend> {
 }
 
 #[target_feature(enable = "avx2")]
-pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let buf = &mut buf.bytes;
     let mut ctr = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
     let splat = |x: u32| _mm256_set1_epi32(x.cast_signed());

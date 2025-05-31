@@ -9,22 +9,26 @@ use x86::{
 };
 
 use crate::{
+    Backend, Buffer,
     array_ref::array_chunks_mut,
     common_guts::{eight_rounds, init_state},
-    Backend, Buffer,
 };
 
 pub(crate) fn detect() -> Option<Backend> {
-    // This whole module is `#[cfg]`-gated on SSE2 being available, but let's double-check.
-    const {
-        assert!(cfg!(target_feature = "sse2"));
+    #[cfg(feature = "std")]
+    let has_sse2 = std::arch::is_x86_feature_detected!("sse2");
+    #[cfg(not(feature = "std"))]
+    let has_sse2 = cfg!(target_feature = "sse2");
+    if has_sse2 {
+        // SAFETY: `fill_buf` is safe to call because SSE2 is available.
+        Some(unsafe { Backend::new_unchecked(fill_buf) })
+    } else {
+        None
     }
-    // SAFETY: `fill_buf` is safe to call because we checked that SSE2 is available (see above).
-    Some(unsafe { Backend::new_unchecked(fill_buf) })
 }
 
 #[target_feature(enable = "sse2")]
-pub(crate) fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
+fn fill_buf(key: &[u32; 8], buf: &mut Buffer) {
     let splat = |x: u32| _mm_set1_epi32(x.cast_signed());
 
     let buf = &mut buf.bytes;

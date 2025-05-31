@@ -26,25 +26,20 @@ macro_rules! arch_backends {
 }
 
 arch_backends! {
-    // This backend uses dynamic feature detection, so it's disabled in no_std mode and only gated
-    // on `target_arch`. In theory it could also be enabled in no_std mode when AVX2 is statically
-    // enabled, but that would probably complicate some unsafe code which seems like a bad trade.
-    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), feature = "std"))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     mod avx2;
 
-    // For SSE2 we don't bother with dynamic feature detection. x86_64 basically always has it, it's
-    // also very commonly enabled on 32-bit targets, and when it isn't, we still have a very high
-    // chance that AVX2 is available at runtime.
-    #[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), target_feature = "sse2"))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     mod sse2;
 
     // The neon backend is limited to little-endian because the core::arch intrinsics currently
     // don't work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they
     // worked, it's a pretty obscure target and difficult to test for (e.g., `cross` doesn't
     // currently support it) so I'm inclined to leave this out until someone champions it.
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon", target_endian = "little"))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
     mod neon;
 
+    // Wasm validation doesn't play nice with runtime detection, so we do static detection only.
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
     mod simd128;
 }
