@@ -7,7 +7,7 @@ use core::arch::aarch64::{
 use crate::{
     Backend, Buffer,
     array_ref::array_chunks_mut,
-    common_guts::{eight_rounds, init_state},
+    backend::{eight_rounds, init_state},
 };
 
 pub(crate) fn detect() -> Option<Backend> {

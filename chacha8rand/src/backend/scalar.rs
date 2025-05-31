@@ -1,7 +1,7 @@
 use crate::{
     Buffer,
     array_ref::{array_chunks_mut, slice_array_mut},
-    common_guts::{eight_rounds, init_state},
+    backend::{eight_rounds, init_state},
 };
 
 #[inline(never)]

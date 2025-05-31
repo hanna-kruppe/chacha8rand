@@ -150,7 +150,6 @@ use array_ref::slice_array;
 
 mod array_ref;
 mod backend;
-mod common_guts;
 #[cfg(feature = "rand_core_0_6")]
 mod rand_core_0_6;
 #[cfg(feature = "rand_core_0_9")]

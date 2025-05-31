@@ -3,9 +3,9 @@ use core::arch::wasm32::{
 };
 
 use crate::{
-    array_ref::array_chunks_mut,
-    common_guts::{eight_rounds, init_state},
     Backend, Buffer,
+    array_ref::array_chunks_mut,
+    backend::{eight_rounds, init_state},
 };
 
 pub(crate) fn detect() -> Option<Backend> {
