@@ -56,29 +56,25 @@ pub(crate) fn detect_best() -> Backend {
         .unwrap_or_else(scalar)
 }
 
-// The constant words in the first row of the initial state
-const C0: u32 = u32::from_le_bytes(*b"expa");
-const C1: u32 = u32::from_le_bytes(*b"nd 3");
-const C2: u32 = u32::from_le_bytes(*b"2-by");
-const C3: u32 = u32::from_le_bytes(*b"te k");
+fn init_state<T: Copy>(ctr: T, key: &[u32; 8], splat: impl Fn(u32) -> T) -> [T; 16] {
+    const C0: u32 = u32::from_le_bytes(*b"expa");
+    const C1: u32 = u32::from_le_bytes(*b"nd 3");
+    const C2: u32 = u32::from_le_bytes(*b"2-by");
+    const C3: u32 = u32::from_le_bytes(*b"te k");
 
-pub(crate) fn init_state<T: Copy>(ctr: T, key: &[u32; 8], splat: impl Fn(u32) -> T) -> [T; 16] {
+    let [k0, k1, k2, k3, k4, k5, k6, k7] = *key;
     #[rustfmt::skip]
     let x = [
-        splat(C0),     splat(C1),     splat(C2),     splat(C3),
-        splat(key[0]), splat(key[1]), splat(key[2]), splat(key[3]),
-        splat(key[4]), splat(key[5]), splat(key[6]), splat(key[7]),
-        ctr,           splat(0),      splat(0),      splat(0)
+        splat(C0), splat(C1), splat(C2), splat(C3),
+        splat(k0), splat(k1), splat(k2), splat(k3),
+        splat(k4), splat(k5), splat(k6), splat(k7),
+        ctr,       splat(0),  splat(0),  splat(0),
     ];
     x
 }
 
-// NB: if `qr` is a closure and dynamic feature detection is involved, that closure really needs to
-// be inline(always) so it gets inlined and we get reasonable codegen. (Luckily, `init_state`
-// doesn't seem to have the same problem with `splat`. Maybe because splatting is comparatively
-// trivial and called less often.)
-#[inline(always)]
-pub(crate) fn eight_rounds<T: Copy>(x: &mut [T; 16], qr: impl Fn([T; 4]) -> [T; 4]) {
+#[inline]
+fn eight_rounds<T: Copy>(x: &mut [T; 16], qr: impl Fn([T; 4]) -> [T; 4]) {
     const ROUNDS: u32 = 8;
     for _ in (0..ROUNDS).step_by(2) {
         // Odd round: columns
