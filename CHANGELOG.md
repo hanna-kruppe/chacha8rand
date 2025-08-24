@@ -10,13 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 Improved and expanded `target_feature` detection for SIMD backends:
-* The AVX2 backend can be used without `std` when the target feature is
-  statically known to be available (most likely due to `-Ctarget-feature`).
-* The SSE2 backend supports runtime feature detection with the `std` feature.
-  This only matters for `i586-unknown-linux-{gnu,musl}` targets.
-* AArch64 NEON backend also supports runtime feature detection with the `std`
-  feature. This is for consistency with x86, it shouldn't matter for any
-  existing target.
+* The AVX2 backend now always supports static detection (e.g.,
+  `-Ctarget-feature`), not only runtime detection (which requires `std`).
+* The SSE2 and AArch64 NEON backends now support runtime feature detection with
+  the `std` feature, not only static feature detection. This is mostly for
+  consistency, all common Rust targets have these features enabled statically.
 
 ### Changed
 
