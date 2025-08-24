@@ -32,10 +32,10 @@ arch_backends! {
     #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     mod sse2;
 
-    // The neon backend is limited to little-endian because the core::arch intrinsics currently
-    // don't work on aarch64be (https://github.com/rust-lang/stdarch/issues/1484). Even if they
-    // worked, it's a pretty obscure target and difficult to test for (e.g., `cross` doesn't
-    // currently support it) so I'm inclined to leave this out until someone champions it.
+    // The neon backend is limited to little-endian because aarch64be NEON has historically been
+    // broken (https://github.com/rust-lang/stdarch/issues/1484). That's allegedly fixed now, but
+    // it's hard to test for these targets (e.g., `cross` doesn't currently support it) so let's err
+    // on the side of correctness for now. The scalar code is tested on big endian (via s390x).
     #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
     mod neon;
 
