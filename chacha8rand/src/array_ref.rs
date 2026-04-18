@@ -2,7 +2,7 @@
 pub(crate) fn array_chunks_mut<const C: usize, const N: usize>(
     a: &mut [u8; N],
 ) -> impl Iterator<Item = &mut [u8; C]> {
-    const { assert!(N % C == 0, "array length must be multiple of chunk length") }
+    const { assert!(N.is_multiple_of(C)) }
     a.chunks_exact_mut(C).map(|chunk| chunk.try_into().unwrap())
 }
 
