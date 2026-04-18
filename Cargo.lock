@@ -29,6 +29,7 @@ version = "0.1.2"
 dependencies = [
  "getrandom",
  "rand",
+ "rand_core 0.10.1",
  "rand_core 0.6.4",
  "rand_core 0.9.3",
  "uuid",
@@ -119,6 +120,12 @@ checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom",
 ]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "syn"

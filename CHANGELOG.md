@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - (release date TBD)
 
+### Added
+
+* Support for rand v0.10 (opt-in feature `rand_core_0_10`)
+
 ## [0.1.2] - 2025-08-24
 
 ### Added

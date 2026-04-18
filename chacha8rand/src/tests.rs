@@ -304,6 +304,39 @@ mod rand09 {
     }
 }
 
+#[cfg(feature = "rand_core_0_10")]
+mod rand010 {
+    use core::iter;
+
+    use rand_core_0_10::{Rng, SeedableRng};
+
+    use crate::ChaCha8Rand;
+
+    use super::{SAMPLE_OUTPUT_U64LE, SAMPLE_SEED, check_byte_output};
+
+    #[test]
+    fn next_u32() {
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
+        let u32s = iter::repeat_with(|| Rng::next_u32(&mut rng));
+        check_byte_output(u32s.flat_map(u32::to_le_bytes));
+    }
+
+    #[test]
+    fn next_u64() {
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
+        let u64s = iter::repeat_with(|| Rng::next_u64(&mut rng));
+        check_byte_output(u64s.flat_map(u64::to_le_bytes));
+    }
+
+    #[test]
+    fn fill_bytes() {
+        let mut rng = ChaCha8Rand::from_seed(*SAMPLE_SEED);
+        let mut bytes = [0; SAMPLE_OUTPUT_U64LE.len() * 8];
+        rng.fill_bytes(&mut bytes);
+        check_byte_output(bytes.iter().copied());
+    }
+}
+
 fn expected_bytes() -> impl Iterator<Item = u8> {
     SAMPLE_OUTPUT_U64LE.iter().flat_map(|n| n.to_le_bytes())
 }
