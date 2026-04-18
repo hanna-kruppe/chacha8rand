@@ -94,9 +94,9 @@
 //!
 //! # <a name="crate-features"></a> Crate Features
 //!
-//! The crate is `no_std` and "no `alloc`" by default. There are currently two crate features you
-//! might enable when depending on `chacha8rand`. You can manually add them to Cargo.toml (`features
-//! = [...]` key) or use a command like `cargo add chacha8rand -F rand_core_0_10`. The features are:
+//! The crate has no dependencies and is `no_std` by default. Ecosystem integrations and use of
+//! `std` are opt-in features that you can manually add them to Cargo.toml (`features = [...]` key)
+//! or with `cargo add chacha8rand -F rand_core_0_10`. The current features are:
 //!
 //! * **`std`**: opts out of `#![no_std]`, enables runtime detection of `target_feature`s for higher
 //!   performance on some targets. It does not (currently) affect the API surface, so ideally
@@ -109,10 +109,6 @@
 //!   for integration with `rand` v0.9.
 //! * **`rand_core_0_10`**: implement the `Rng` and `SeedableRng` traits from `rand_core` v0.10, for
 //!   integration with `rand` v0.10.
-//!
-//! No feature is enabled by default, so you don't need `no-default-features = true` / `cargo add
-//! --no-default-features`. In fact, please don't, because then your code might break if a later
-//! version moves existing functionality under a new on-by-default feature.
 //!
 //! There are also some features with an "unstable" prefix in their name. Anything covered by these
 //! is for internal use only (e.g., the crate's benchmarks are compiled as a separate crate) and
