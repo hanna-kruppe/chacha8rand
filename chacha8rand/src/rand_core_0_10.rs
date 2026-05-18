@@ -23,7 +23,7 @@ impl TryRng for ChaCha8Rand {
     }
 }
 
-/// Integration with rand_core v0.6 / rand v0.8. Requires crate feature `rand_core_0_6`.
+/// Integration with rand_core v0.10 / rand v0.10. Requires crate feature `rand_core_0_10`.
 ///
 /// `from_seed` is equivalent to [`ChaCha8Rand::new`] except that it takes the seed by value instead
 /// of by reference.
