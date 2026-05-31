@@ -667,6 +667,7 @@ impl ChaCha8Rand {
     /// ```
     ///
     /// [uuid]: https://crates.io/crates/uuid
+    #[inline]
     pub fn read_bytes(&mut self, dest: &mut [u8]) {
         let mut total_bytes_read = 0;
         while total_bytes_read < dest.len() {
