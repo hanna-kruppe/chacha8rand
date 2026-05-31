@@ -669,13 +669,20 @@ impl ChaCha8Rand {
     /// [uuid]: https://crates.io/crates/uuid
     #[inline]
     pub fn read_bytes(&mut self, dest: &mut [u8]) {
-        let mut total_bytes_read = 0;
         let n = dest.len();
         if self.bytes_consumed.saturating_add(n) <= BUF_OUTPUT_LEN {
             dest.copy_from_slice(&self.buf.output()[self.bytes_consumed..][..n]);
             self.bytes_consumed += n;
             return;
         }
+        self.read_bytes_cold(dest);
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn read_bytes_cold(&mut self, dest: &mut [u8]) {
+        let mut total_bytes_read = 0;
+        let n = dest.len();
         while total_bytes_read < n {
             let dest_remainder = &mut dest[total_bytes_read..];
             if self.bytes_consumed >= self.buf.output().len() {
