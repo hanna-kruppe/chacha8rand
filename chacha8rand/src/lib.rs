@@ -670,7 +670,13 @@ impl ChaCha8Rand {
     #[inline]
     pub fn read_bytes(&mut self, dest: &mut [u8]) {
         let mut total_bytes_read = 0;
-        while total_bytes_read < dest.len() {
+        let n = dest.len();
+        if self.bytes_consumed.saturating_add(n) <= BUF_OUTPUT_LEN {
+            dest.copy_from_slice(&self.buf.output()[self.bytes_consumed..][..n]);
+            self.bytes_consumed += n;
+            return;
+        }
+        while total_bytes_read < n {
             let dest_remainder = &mut dest[total_bytes_read..];
             if self.bytes_consumed >= self.buf.output().len() {
                 self.refill();
@@ -684,7 +690,7 @@ impl ChaCha8Rand {
             self.bytes_consumed += read_now;
             debug_assert!(self.bytes_consumed <= self.buf.output().len());
         }
-        debug_assert!(total_bytes_read == dest.len());
+        debug_assert!(total_bytes_read == n);
     }
 
     /// Consume 32 uniformly random bytes, suitable for seeding another RNG instance.
